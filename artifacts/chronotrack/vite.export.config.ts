@@ -6,6 +6,10 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 
 export default defineConfig({
   base: "./",
+  define: {
+    "import.meta.env.VITE_FIREBASE_API_KEY": JSON.stringify(process.env.VITE_FIREBASE_API_KEY ?? ""),
+    "import.meta.env.BASE_URL": JSON.stringify("./"),
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -23,5 +27,7 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/export"),
     emptyOutDir: true,
     target: "esnext",
+    assetsInlineLimit: 100000000,
+    cssCodeSplit: false,
   },
 });

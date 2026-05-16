@@ -80,12 +80,11 @@ export default function Chrono() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [globalRunning, globalStartTime]);
 
-  // ── Global timer controls ──────────────────────────────────────────────
+  // ── Global timer controls ─────────────────────────────────────────────
 
   const handleGlobalStart = () => {
-    const now = Date.now();
     setGlobalRunning(true);
-    setGlobalStartTime(now);
+    setGlobalStartTime(Date.now());
     setGlobalMs(0);
   };
 
@@ -99,13 +98,10 @@ export default function Chrono() {
     setGlobalMs(0);
   };
 
-  // ── Save series to both REST API and Firebase ─────────────────────────
+  // ── Save series to API + Firebase ─────────────────────────────────────
 
-  const saveSeries = useCallback((
-    pid: number, name: string, timeMs: number, repIndex: number
-  ) => {
+  const saveSeries = useCallback((pid: number, name: string, timeMs: number, repIndex: number) => {
     if (!session || !distance) return;
-    // REST API
     createSeries.mutate({
       data: {
         dateKey: session.date,
@@ -116,12 +112,8 @@ export default function Chrono() {
     }, {
       onSuccess: () => toast({ title: `Rép ${repIndex} — ${name} : ${formatTime(timeMs)}` })
     });
-    // Firebase Firestore
-    const dateKey = session.date;
-    const seriesId = `${dateKey}_${pid}`;
     addDoc(collection(db, "series"), {
-      seriesId,
-      dateKey,
+      dateKey: session.date,
       sessionId: session.id,
       dist: distance,
       pid,
@@ -188,15 +180,15 @@ export default function Chrono() {
 
   const stopSelected = () => {
     const now = Date.now();
-    setParticipants(prev => {
-      return prev.map(p => {
+    setParticipants(prev =>
+      prev.map(p => {
         if (!p.selected || !p.running || p.startTime === null) return p;
         const finalMs = now - p.startTime;
         const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
         saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
         return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep] };
-      });
-    });
+      })
+    );
   };
 
   const lapSelected = () => {
@@ -242,27 +234,26 @@ export default function Chrono() {
   const allSelected = participants.length > 0 && participants.every(p => p.selected);
 
   return (
-    <div className="flex flex-col bg-zinc-950 text-white min-h-full">
+    <div className="flex flex-col bg-background text-foreground min-h-full">
       {/* ── Session header + global timer ── */}
-      <div className="p-4 border-b border-white/10 bg-zinc-950 shrink-0">
+      <div className="p-4 border-b border-border bg-card shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-bold text-base text-primary">{session.name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-zinc-500 uppercase tracking-wider">Dist :</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider">Dist :</span>
               <Input
                 value={distance}
                 onChange={e => setDistance(e.target.value)}
-                className="h-6 w-20 text-xs bg-zinc-900 border-zinc-800 font-mono text-primary"
+                className="h-6 w-20 text-xs font-mono text-primary"
                 placeholder="400"
               />
-              <span className="text-xs text-zinc-500">m</span>
+              <span className="text-xs text-muted-foreground">m</span>
             </div>
           </div>
           <Button
             variant="outline"
             size="sm"
-            className="border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
             onClick={handleReset}
           >
             <RotateCcw className="w-4 h-4 mr-1" />
@@ -270,18 +261,20 @@ export default function Chrono() {
           </Button>
         </div>
 
-        {/* Global timer */}
+        {/* Global session timer */}
         <div className={`rounded-xl border p-3 flex items-center gap-4 transition-all ${
           globalRunning
-            ? "border-amber-500/40 bg-amber-500/5 shadow-[0_0_20px_rgba(245,158,11,0.06)]"
-            : "border-zinc-800 bg-zinc-900/60"
+            ? "border-amber-400/50 bg-amber-50 shadow-sm"
+            : "border-border bg-muted/40"
         }`}>
           <div className="flex items-center gap-2 shrink-0">
-            <Timer className={`w-4 h-4 ${globalRunning ? "text-amber-400" : "text-zinc-600"}`} />
-            <span className="text-xs text-zinc-500 uppercase tracking-wider">Chrono session</span>
+            <Timer className={`w-4 h-4 ${globalRunning ? "text-amber-600" : "text-muted-foreground"}`} />
+            <span className={`text-xs uppercase tracking-wider font-medium ${globalRunning ? "text-amber-700" : "text-muted-foreground"}`}>
+              Chrono session
+            </span>
           </div>
           <div className={`font-mono text-2xl font-bold tabular-nums tracking-tight flex-1 ${
-            globalRunning ? "text-amber-400" : "text-zinc-600"
+            globalRunning ? "text-amber-700" : "text-muted-foreground"
           }`}>
             {formatTime(globalMs)}
           </div>
@@ -289,7 +282,7 @@ export default function Chrono() {
             {!globalRunning ? (
               <Button
                 size="sm"
-                className="bg-amber-500 text-black hover:bg-amber-400 h-8 px-3 font-bold text-xs uppercase"
+                className="bg-amber-500 text-white hover:bg-amber-600 h-8 px-3 font-bold text-xs uppercase"
                 onClick={handleGlobalStart}
               >
                 <Play className="w-3 h-3 mr-1 fill-current" />
@@ -299,18 +292,18 @@ export default function Chrono() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-8 px-3 font-bold text-xs uppercase"
+                className="border-amber-400 text-amber-700 hover:bg-amber-50 h-8 px-3 font-bold text-xs uppercase"
                 onClick={handleGlobalStop}
               >
                 <Square className="w-3 h-3 mr-1 fill-current" />
                 Stop
               </Button>
             )}
-            {(globalMs > 0) && (
+            {globalMs > 0 && (
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 w-8 p-0 text-zinc-600 hover:text-zinc-400"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                 onClick={handleGlobalReset}
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -321,13 +314,13 @@ export default function Chrono() {
       </div>
 
       {/* ── Select-all row ── */}
-      <div className="px-4 py-2 border-b border-white/5 flex items-center gap-3 bg-zinc-900/40 shrink-0">
+      <div className="px-4 py-2 border-b border-border flex items-center gap-3 bg-muted/30 shrink-0">
         <Checkbox
           checked={allSelected}
           onCheckedChange={toggleSelectAll}
           className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
         />
-        <span className="text-xs text-zinc-500 uppercase tracking-wider">
+        <span className="text-xs text-muted-foreground uppercase tracking-wider">
           {anySelected
             ? `${selectedParticipants.length} sélectionné${selectedParticipants.length > 1 ? "s" : ""}`
             : "Tout sélectionner"}
@@ -349,22 +342,22 @@ export default function Chrono() {
           />
         ))}
         {participants.length === 0 && (
-          <div className="text-center py-12 text-zinc-600 text-sm">
+          <div className="text-center py-12 text-muted-foreground text-sm">
             Aucun athlète dans cette session.
           </div>
         )}
       </div>
 
-      {/* ── Group action bar (sticky bottom, inside scroll) ── */}
+      {/* ── Group action bar (sticky bottom) ── */}
       {anySelected && (
-        <div className="sticky bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur border-t border-white/10 p-3 flex items-center gap-2 shadow-2xl">
-          <span className="text-xs text-zinc-500 shrink-0 mr-1">
+        <div className="sticky bottom-0 left-0 right-0 bg-card/95 backdrop-blur border-t border-border p-3 flex items-center gap-2 shadow-lg">
+          <span className="text-xs text-muted-foreground shrink-0 mr-1">
             {selectedParticipants.length} athlète{selectedParticipants.length > 1 ? "s" : ""}
           </span>
           {selectedNotRunning.length > 0 && (
             <Button
               size="sm"
-              className="flex-1 bg-primary text-black hover:bg-primary/90 font-bold text-xs uppercase tracking-wider"
+              className="flex-1 font-bold text-xs uppercase tracking-wider"
               onClick={startSelected}
             >
               <Play className="w-3 h-3 mr-1.5 fill-current" />
@@ -376,7 +369,7 @@ export default function Chrono() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-primary/40 text-primary hover:bg-primary/20 font-mono text-xs"
+                className="text-primary border-primary/40 hover:bg-primary/10 font-mono text-xs"
                 onClick={lapSelected}
               >
                 <Flag className="w-3 h-3 mr-1.5" />
@@ -424,10 +417,10 @@ function AthleteCard({
   return (
     <div className={`rounded-xl border transition-all ${
       p.running
-        ? "border-primary/60 bg-primary/5 shadow-[0_0_20px_rgba(34,197,94,0.08)]"
+        ? "border-primary/40 bg-primary/5 shadow-sm"
         : p.selected
         ? "border-primary/30 bg-primary/[0.03]"
-        : "border-zinc-800 bg-zinc-900/70"
+        : "border-border bg-card"
     }`}>
       <div className="flex items-center gap-3 p-3">
         <Checkbox
@@ -436,14 +429,14 @@ function AthleteCard({
           className="shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
         />
         <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
-          p.running ? "bg-primary text-black" : "bg-zinc-800 text-zinc-400"
+          p.running ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
         }`}>
           {p.name.charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{p.name}</div>
           <div className={`font-mono text-xl font-bold tabular-nums tracking-tight ${
-            p.running ? "text-primary" : "text-zinc-500"
+            p.running ? "text-primary" : "text-muted-foreground"
           }`}>
             {formatTime(p.running ? p.currentMs : p.reps.length > 0 ? p.reps[p.reps.length - 1].timeMs : 0)}
           </div>
@@ -454,7 +447,7 @@ function AthleteCard({
               <Button
                 size="sm"
                 variant="outline"
-                className="border-primary/40 text-primary hover:bg-primary/20 h-9 px-3 font-mono text-xs"
+                className="border-primary/40 text-primary hover:bg-primary/10 h-9 px-3 font-mono text-xs"
                 onClick={() => onLap(p.spId)}
               >
                 <Flag className="w-3 h-3 mr-1" />
@@ -473,7 +466,7 @@ function AthleteCard({
           ) : (
             <Button
               size="sm"
-              className="bg-primary text-black hover:bg-primary/90 h-9 px-4 font-bold text-xs uppercase tracking-wider"
+              className="h-9 px-4 font-bold text-xs uppercase tracking-wider"
               onClick={() => onStart(p.spId)}
             >
               <Play className="w-3 h-3 mr-1 fill-current" />
@@ -499,13 +492,13 @@ function AthleteCard({
 
       {/* Completed reps */}
       {p.reps.length > 0 && (
-        <div className="border-t border-zinc-800/60 px-3 pb-3 pt-2">
+        <div className="border-t border-border px-3 pb-3 pt-2">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">
               {p.reps.length} rép{p.reps.length > 1 ? "s" : ""}
             </span>
             {avgMs !== null && (
-              <span className="text-xs font-mono text-green-400 font-semibold">Moy : {formatTime(avgMs)}</span>
+              <span className="text-xs font-mono text-primary font-semibold">Moy : {formatTime(avgMs)}</span>
             )}
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -513,27 +506,27 @@ function AthleteCard({
               const key = `${p.spId}-${i}`;
               const expanded = expandedReps.has(key);
               return (
-                <div key={i} className="shrink-0 min-w-[80px] bg-zinc-800/60 border border-zinc-700/50 rounded-lg overflow-hidden">
+                <div key={i} className="shrink-0 min-w-[80px] bg-muted border border-border rounded-lg overflow-hidden">
                   <button
                     className="w-full px-3 py-2 flex flex-col items-center"
                     onClick={() => rep.laps.length > 1 && onToggleRep(key)}
                   >
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Rép {i + 1}</span>
-                    <span className="font-mono text-sm font-bold text-zinc-200">{formatTime(rep.timeMs)}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Rép {i + 1}</span>
+                    <span className="font-mono text-sm font-bold text-foreground">{formatTime(rep.timeMs)}</span>
                     {rep.laps.length > 1 && (
-                      <span className="text-[10px] text-zinc-600 mt-0.5 flex items-center gap-0.5">
+                      <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5">
                         {rep.laps.length} laps
                         {expanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
                       </span>
                     )}
                   </button>
                   {expanded && rep.laps.length > 1 && (
-                    <div className="px-2 pb-2 space-y-1 border-t border-zinc-700/40 pt-1">
+                    <div className="px-2 pb-2 space-y-1 border-t border-border pt-1">
                       {rep.laps.map((lapMs, li) => {
                         const dur = li === 0 ? lapMs : lapMs - rep.laps[li - 1];
                         return (
-                          <div key={li} className="text-[10px] font-mono text-zinc-400 flex justify-between">
-                            <span className="text-zinc-600">L{li + 1}</span>
+                          <div key={li} className="text-[10px] font-mono text-muted-foreground flex justify-between">
+                            <span>L{li + 1}</span>
                             <span>{formatTime(dur)}</span>
                           </div>
                         );
