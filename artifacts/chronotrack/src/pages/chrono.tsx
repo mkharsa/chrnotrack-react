@@ -1,20 +1,27 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
-import { useGetSession, useCreateSeries } from "@workspace/api-client-react";
+import { useGetSession, useCreateSeries, getGetSessionQueryKey } from "@workspace/api-client-react";
 import { formatTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Play, Square, RotateCcw, Flag } from "lucide-react";
+import { Play, Square, RotateCcw, Flag, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+
+type RepRecord = {
+  timeMs: number;
+  laps: number[];
+};
 
 type ParticipantState = {
-  id: number;
+  spId: number;
   pid: number;
   name: string;
-  selected: boolean;
-  laps: number[];
-  repTimes: number[];
+  running: boolean;
+  startTime: number | null;
+  currentMs: number;
+  currentLaps: number[];
+  reps: RepRecord[];
 };
 
 export default function Chrono() {
@@ -22,252 +29,315 @@ export default function Chrono() {
   const sessionId = parseInt(id || "0", 10);
   const { data: session } = useGetSession(sessionId);
   const [participants, setParticipants] = useState<ParticipantState[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [repCount, setRepCount] = useState(0);
   const [distance, setDistance] = useState("");
-
-  const timerRef = useRef<number | null>(null);
+  const [expandedReps, setExpandedReps] = useState<Set<string>>(new Set());
   const createSeries = useCreateSeries();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (session && participants.length === 0) {
-      setParticipants(session.participants.map(p => ({
-        id: p.id,
-        pid: p.participantId ?? p.id,
-        name: p.name,
-        selected: true,
-        laps: [],
-        repTimes: []
-      })));
-      if (session.defaultDist) {
-        setDistance(session.defaultDist);
-      }
+      setParticipants(
+        session.participants.map(p => ({
+          spId: p.id,
+          pid: p.participantId ?? p.id,
+          name: p.name,
+          running: false,
+          startTime: null,
+          currentMs: 0,
+          currentLaps: [],
+          reps: [],
+        }))
+      );
+      if (session.defaultDist) setDistance(session.defaultDist);
     }
   }, [session, participants.length]);
 
+  // Shared interval for all running athletes
   useEffect(() => {
-    if (isRunning) {
-      timerRef.current = window.setInterval(() => {
-        setCurrentTime(Date.now() - (startTime || 0));
-      }, 10);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
+    intervalRef.current = window.setInterval(() => {
+      const now = Date.now();
+      setParticipants(prev => {
+        const anyRunning = prev.some(p => p.running);
+        if (!anyRunning) return prev;
+        return prev.map(p =>
+          p.running && p.startTime !== null
+            ? { ...p, currentMs: now - p.startTime }
+            : p
+        );
+      });
+    }, 16);
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning, startTime]);
+  }, []);
 
-  const handleStart = () => {
-    if (participants.filter(p => p.selected).length === 0) return;
-    setIsRunning(true);
-    setStartTime(Date.now());
-    setCurrentTime(0);
-    setParticipants(prev => prev.map(p => ({
-      ...p,
-      laps: p.selected ? [] : p.laps
-    })));
-  };
+  const handleStart = useCallback((spId: number) => {
+    setParticipants(prev =>
+      prev.map(p =>
+        p.spId === spId
+          ? { ...p, running: true, startTime: Date.now(), currentMs: 0, currentLaps: [] }
+          : p
+      )
+    );
+  }, []);
 
-  const handleLap = (pid: number) => {
-    if (!isRunning) return;
-    const now = Date.now();
-    const elapsed = now - (startTime || 0);
-    setParticipants(prev => prev.map(p => {
-      if (p.pid === pid && p.selected) {
-        return { ...p, laps: [...p.laps, elapsed] };
-      }
-      return p;
-    }));
-  };
+  const handleLap = useCallback((spId: number) => {
+    setParticipants(prev =>
+      prev.map(p => {
+        if (p.spId !== spId || !p.running || p.startTime === null) return p;
+        const elapsed = Date.now() - p.startTime;
+        return { ...p, currentLaps: [...p.currentLaps, elapsed] };
+      })
+    );
+  }, []);
 
-  const handleStop = () => {
-    if (!isRunning) return;
-    setIsRunning(false);
+  const handleStop = useCallback((spId: number) => {
+    setParticipants(prev => {
+      const p = prev.find(x => x.spId === spId);
+      if (!p || !p.running || p.startTime === null || !session || !distance) return prev;
+      const finalMs = Date.now() - p.startTime;
+      const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
+      const updated = prev.map(x =>
+        x.spId === spId
+          ? { ...x, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...x.reps, newRep] }
+          : x
+      );
 
-    const finalTime = currentTime;
-    const activeParticipants = participants.filter(p => p.selected);
+      // Save series
+      createSeries.mutate({
+        data: {
+          dateKey: session.date,
+          sessionId: session.id,
+          dist: distance,
+          entries: [{ pid: p.pid, name: p.name, timeMs: finalMs, include: true }]
+        }
+      }, {
+        onSuccess: () => {
+          toast({ title: `Rép ${p.reps.length + 1} — ${p.name} : ${formatTime(finalMs)}` });
+        }
+      });
 
-    setParticipants(prev => prev.map(p => {
-      if (p.selected) {
-        const finalLap = p.laps.length > 0 ? p.laps[p.laps.length - 1] : finalTime;
-        return { ...p, repTimes: [...p.repTimes, finalLap] };
-      }
-      return p;
-    }));
-
-    setRepCount(r => r + 1);
-
-    if (!session || !distance) return;
-
-    const entries = activeParticipants.map(p => ({
-      pid: p.pid,
-      name: p.name,
-      timeMs: p.laps.length > 0 ? p.laps[p.laps.length - 1] : finalTime,
-      include: true
-    }));
-
-    createSeries.mutate({
-      data: {
-        dateKey: session.date,
-        sessionId: session.id,
-        dist: distance,
-        entries
-      }
-    }, {
-      onSuccess: () => {
-        toast({ title: `Répétition ${repCount + 1} enregistrée` });
-      }
+      return updated;
     });
-  };
+  }, [session, distance, createSeries, toast]);
 
   const handleReset = () => {
-    setIsRunning(false);
-    setStartTime(null);
-    setCurrentTime(0);
-    setRepCount(0);
-    setParticipants(prev => prev.map(p => ({ ...p, laps: [], repTimes: [] })));
+    setParticipants(prev =>
+      prev.map(p => ({ ...p, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [] }))
+    );
   };
 
-  const toggleSelect = (pid: number) => {
-    if (isRunning) return;
-    setParticipants(prev => prev.map(p => p.pid === pid ? { ...p, selected: !p.selected } : p));
+  const toggleRepExpanded = (key: string) => {
+    setExpandedReps(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   if (!session) return null;
 
+  const anyRunning = participants.some(p => p.running);
+
   return (
-    <div className="flex flex-col h-full bg-black text-white">
+    <div className="flex flex-col h-full bg-zinc-950 text-white">
       {/* Header */}
-      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-zinc-950">
+      <div className="p-4 border-b border-white/10 flex items-center justify-between bg-zinc-950 shrink-0">
         <div>
-          <h2 className="font-bold text-lg text-primary">{session.name}</h2>
+          <h2 className="font-bold text-base text-primary">{session.name}</h2>
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-zinc-500 uppercase tracking-wider">Distance :</span>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Dist :</span>
             <Input
               value={distance}
               onChange={e => setDistance(e.target.value)}
               className="h-6 w-20 text-xs bg-zinc-900 border-zinc-800 font-mono text-primary"
-              placeholder="ex: 400"
-              disabled={isRunning}
+              placeholder="400"
+              disabled={anyRunning}
             />
+            <span className="text-xs text-zinc-500">m</span>
           </div>
         </div>
-        <div className="text-right">
-          <div className="font-mono text-3xl font-bold tracking-tighter text-primary tabular-nums">
-            {formatTime(currentTime)}
-          </div>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
+          onClick={handleReset}
+          disabled={anyRunning}
+        >
+          <RotateCcw className="w-4 h-4 mr-1" />
+          Reset
+        </Button>
       </div>
 
-      {/* Grille */}
-      <div className="flex-1 overflow-auto">
-        <div className="min-w-max p-4">
-          <div className="flex gap-4">
-            {/* Colonne athlètes */}
-            <div className="w-48 shrink-0 space-y-2">
-              <div className="h-8 text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center">
-                Athlètes
-              </div>
-              {participants.map(p => (
-                <div key={p.pid} className={`h-14 flex items-center px-3 rounded-md border ${p.selected ? 'border-primary/50 bg-primary/5' : 'border-zinc-800 bg-zinc-900/50'} transition-colors`}>
-                  <Checkbox
-                    checked={p.selected}
-                    onCheckedChange={() => toggleSelect(p.pid)}
-                    disabled={isRunning}
-                    className="mr-3 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                  />
-                  <span className={`font-medium ${p.selected ? 'text-white' : 'text-zinc-500'} truncate`}>{p.name}</span>
-                </div>
-              ))}
-            </div>
+      {/* Athletes */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-6">
+        {participants.map(p => (
+          <AthleteCard
+            key={p.spId}
+            participant={p}
+            onStart={handleStart}
+            onStop={handleStop}
+            onLap={handleLap}
+            distanceDisabled={anyRunning && !p.running}
+            expandedReps={expandedReps}
+            onToggleRep={toggleRepExpanded}
+          />
+        ))}
+        {participants.length === 0 && (
+          <div className="text-center py-12 text-zinc-600 text-sm">
+            Aucun athlète dans cette session.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-            {/* Colonnes répétitions */}
-            {Array.from({ length: repCount }).map((_, i) => (
-              <div key={i} className="w-24 shrink-0 space-y-2">
-                <div className="h-8 text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center justify-center bg-zinc-900/50 rounded">
-                  Rép {i + 1}
-                </div>
-                {participants.map(p => (
-                  <div key={p.pid} className="h-14 flex items-center justify-center bg-zinc-900/30 rounded-md border border-zinc-800/50">
-                    {p.repTimes[i] ? (
-                      <span className="font-mono text-sm text-zinc-300">{formatTime(p.repTimes[i])}</span>
-                    ) : (
-                      <span className="text-zinc-700">-</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
+function AthleteCard({
+  participant: p,
+  onStart,
+  onStop,
+  onLap,
+  distanceDisabled,
+  expandedReps,
+  onToggleRep,
+}: {
+  participant: ParticipantState;
+  onStart: (spId: number) => void;
+  onStop: (spId: number) => void;
+  onLap: (spId: number) => void;
+  distanceDisabled: boolean;
+  expandedReps: Set<string>;
+  onToggleRep: (key: string) => void;
+}) {
+  const avgMs = p.reps.length > 0
+    ? Math.round(p.reps.reduce((s, r) => s + r.timeMs, 0) / p.reps.length)
+    : null;
 
-            {/* Colonne en cours */}
-            {isRunning && (
-              <div className="w-32 shrink-0 space-y-2">
-                <div className="h-8 text-xs font-bold text-primary uppercase tracking-wider flex items-center justify-center bg-primary/10 rounded animate-pulse">
-                  En cours
-                </div>
-                {participants.map(p => (
-                  <div key={p.pid} className="h-14 flex items-center justify-center">
-                    {p.selected ? (
-                      <Button
-                        variant="outline"
-                        className="w-full h-full border-primary/30 hover:bg-primary/20 text-primary font-mono text-sm shadow-[0_0_15px_rgba(34,197,94,0.1)]"
-                        onClick={() => handleLap(p.pid)}
-                      >
-                        <Flag className="w-3 h-3 mr-2" />
-                        {p.laps.length > 0 ? formatTime(p.laps[p.laps.length - 1]) : "LAP"}
-                      </Button>
-                    ) : (
-                      <div className="w-full h-full bg-zinc-900/30 rounded-md border border-zinc-800/50 flex items-center justify-center text-zinc-700">
-                        -
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+  return (
+    <div className={`rounded-xl border transition-all ${p.running ? 'border-primary/60 bg-primary/5 shadow-[0_0_20px_rgba(34,197,94,0.08)]' : 'border-zinc-800 bg-zinc-900/70'}`}>
+      {/* Main row */}
+      <div className="flex items-center gap-3 p-3">
+        {/* Avatar */}
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${p.running ? 'bg-primary text-black' : 'bg-zinc-800 text-zinc-400'}`}>
+          {p.name.charAt(0).toUpperCase()}
+        </div>
+
+        {/* Name + timer */}
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm truncate">{p.name}</div>
+          <div className={`font-mono text-xl font-bold tabular-nums tracking-tight ${p.running ? 'text-primary' : 'text-zinc-500'}`}>
+            {formatTime(p.running ? p.currentMs : (p.reps.length > 0 ? p.reps[p.reps.length - 1].timeMs : 0))}
           </div>
         </div>
-      </div>
 
-      {/* Contrôles */}
-      <div className="p-4 bg-zinc-950 border-t border-white/10 shrink-0 pb-safe">
-        <div className="flex gap-2 max-w-md mx-auto">
-          {!isRunning ? (
+        {/* Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {p.running ? (
             <>
               <Button
+                size="sm"
                 variant="outline"
-                size="lg"
-                className="w-16 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800"
-                onClick={handleReset}
+                className="border-primary/40 text-primary hover:bg-primary/20 h-9 px-3 font-mono text-xs"
+                onClick={() => onLap(p.spId)}
               >
-                <RotateCcw className="w-5 h-5" />
+                <Flag className="w-3 h-3 mr-1" />
+                LAP
               </Button>
               <Button
-                size="lg"
-                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold uppercase tracking-wider"
-                onClick={handleStart}
+                size="sm"
+                variant="destructive"
+                className="h-9 px-3 font-bold text-xs uppercase tracking-wider"
+                onClick={() => onStop(p.spId)}
               >
-                <Play className="w-5 h-5 mr-2 fill-current" />
-                Démarrer
+                <Square className="w-3 h-3 mr-1 fill-current" />
+                Stop
               </Button>
             </>
           ) : (
             <Button
-              variant="destructive"
-              size="lg"
-              className="flex-1 text-lg font-bold uppercase tracking-wider"
-              onClick={handleStop}
+              size="sm"
+              className="bg-primary text-black hover:bg-primary/90 h-9 px-4 font-bold text-xs uppercase tracking-wider"
+              onClick={() => onStart(p.spId)}
             >
-              <Square className="w-5 h-5 mr-2 fill-current" />
-              Arrêter et sauvegarder
+              <Play className="w-3 h-3 mr-1 fill-current" />
+              {p.reps.length > 0 ? `Rép ${p.reps.length + 1}` : 'Start'}
             </Button>
           )}
         </div>
       </div>
+
+      {/* Live laps during current rep */}
+      {p.running && p.currentLaps.length > 0 && (
+        <div className="px-4 pb-2 flex flex-wrap gap-2">
+          {p.currentLaps.map((ms, i) => {
+            const lapDuration = i === 0 ? ms : ms - p.currentLaps[i - 1];
+            return (
+              <span key={i} className="text-xs font-mono bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5">
+                L{i + 1} {formatTime(lapDuration)} @ {formatTime(ms)}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Completed reps */}
+      {p.reps.length > 0 && (
+        <div className="border-t border-zinc-800/60 px-3 pb-3 pt-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              {p.reps.length} rép{p.reps.length > 1 ? "s" : ""}
+            </span>
+            {avgMs !== null && (
+              <span className="text-xs font-mono text-green-400 font-semibold">
+                Moy : {formatTime(avgMs)}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {p.reps.map((rep, i) => {
+              const key = `${p.spId}-${i}`;
+              const expanded = expandedReps.has(key);
+              return (
+                <div
+                  key={i}
+                  className="shrink-0 min-w-[80px] bg-zinc-800/60 border border-zinc-700/50 rounded-lg overflow-hidden"
+                >
+                  <button
+                    className="w-full px-3 py-2 flex flex-col items-center"
+                    onClick={() => rep.laps.length > 1 && onToggleRep(key)}
+                  >
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Rép {i + 1}</span>
+                    <span className="font-mono text-sm font-bold text-zinc-200">{formatTime(rep.timeMs)}</span>
+                    {rep.laps.length > 1 && (
+                      <span className="text-[10px] text-zinc-600 mt-0.5 flex items-center gap-0.5">
+                        {rep.laps.length} laps
+                        {expanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                      </span>
+                    )}
+                  </button>
+                  {expanded && rep.laps.length > 1 && (
+                    <div className="px-2 pb-2 space-y-1 border-t border-zinc-700/40 pt-1">
+                      {rep.laps.map((lapMs, li) => {
+                        const dur = li === 0 ? lapMs : lapMs - rep.laps[li - 1];
+                        return (
+                          <div key={li} className="text-[10px] font-mono text-zinc-400 flex justify-between">
+                            <span className="text-zinc-600">L{li + 1}</span>
+                            <span>{formatTime(dur)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
