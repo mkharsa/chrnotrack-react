@@ -74,5 +74,8 @@
     "vite-plugin-singlefile": "^2.3.3",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "firebase": "^12.13.0"
   }
 }
