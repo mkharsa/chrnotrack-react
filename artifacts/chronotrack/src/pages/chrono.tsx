@@ -13,8 +13,8 @@ type ParticipantState = {
   pid: number;
   name: string;
   selected: boolean;
-  laps: number[]; // relative ms per lap for current rep
-  repTimes: number[]; // total ms for each rep
+  laps: number[];
+  repTimes: number[];
 };
 
 export default function Chrono() {
@@ -27,7 +27,7 @@ export default function Chrono() {
   const [currentTime, setCurrentTime] = useState(0);
   const [repCount, setRepCount] = useState(0);
   const [distance, setDistance] = useState("");
-  
+
   const timerRef = useRef<number | null>(null);
   const createSeries = useCreateSeries();
   const { toast } = useToast();
@@ -36,7 +36,7 @@ export default function Chrono() {
     if (session && participants.length === 0) {
       setParticipants(session.participants.map(p => ({
         id: p.id,
-        pid: p.participantId,
+        pid: p.participantId ?? p.id,
         name: p.name,
         selected: true,
         laps: [],
@@ -66,7 +66,6 @@ export default function Chrono() {
     setIsRunning(true);
     setStartTime(Date.now());
     setCurrentTime(0);
-    // clear laps for new rep
     setParticipants(prev => prev.map(p => ({
       ...p,
       laps: p.selected ? [] : p.laps
@@ -88,11 +87,10 @@ export default function Chrono() {
   const handleStop = () => {
     if (!isRunning) return;
     setIsRunning(false);
-    
-    // Assign final time to selected participants who didn't lap at the end
+
     const finalTime = currentTime;
     const activeParticipants = participants.filter(p => p.selected);
-    
+
     setParticipants(prev => prev.map(p => {
       if (p.selected) {
         const finalLap = p.laps.length > 0 ? p.laps[p.laps.length - 1] : finalTime;
@@ -103,9 +101,8 @@ export default function Chrono() {
 
     setRepCount(r => r + 1);
 
-    // Save to backend
     if (!session || !distance) return;
-    
+
     const entries = activeParticipants.map(p => ({
       pid: p.pid,
       name: p.name,
@@ -122,7 +119,7 @@ export default function Chrono() {
       }
     }, {
       onSuccess: () => {
-        toast({ title: `Rep ${repCount + 1} saved.` });
+        toast({ title: `Répétition ${repCount + 1} enregistrée` });
       }
     });
   };
@@ -144,17 +141,17 @@ export default function Chrono() {
 
   return (
     <div className="flex flex-col h-full bg-black text-white">
-      {/* Header Info */}
+      {/* Header */}
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-zinc-950">
         <div>
           <h2 className="font-bold text-lg text-primary">{session.name}</h2>
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-zinc-500 uppercase tracking-wider">Distance:</span>
-            <Input 
-              value={distance} 
-              onChange={e => setDistance(e.target.value)} 
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Distance :</span>
+            <Input
+              value={distance}
+              onChange={e => setDistance(e.target.value)}
               className="h-6 w-20 text-xs bg-zinc-900 border-zinc-800 font-mono text-primary"
-              placeholder="e.g. 400"
+              placeholder="ex: 400"
               disabled={isRunning}
             />
           </div>
@@ -166,19 +163,19 @@ export default function Chrono() {
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Grille */}
       <div className="flex-1 overflow-auto">
         <div className="min-w-max p-4">
           <div className="flex gap-4">
-            {/* Athletes Column */}
+            {/* Colonne athlètes */}
             <div className="w-48 shrink-0 space-y-2">
               <div className="h-8 text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center">
-                Athletes
+                Athlètes
               </div>
               {participants.map(p => (
                 <div key={p.pid} className={`h-14 flex items-center px-3 rounded-md border ${p.selected ? 'border-primary/50 bg-primary/5' : 'border-zinc-800 bg-zinc-900/50'} transition-colors`}>
-                  <Checkbox 
-                    checked={p.selected} 
+                  <Checkbox
+                    checked={p.selected}
                     onCheckedChange={() => toggleSelect(p.pid)}
                     disabled={isRunning}
                     className="mr-3 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
@@ -188,11 +185,11 @@ export default function Chrono() {
               ))}
             </div>
 
-            {/* Rep Columns */}
+            {/* Colonnes répétitions */}
             {Array.from({ length: repCount }).map((_, i) => (
               <div key={i} className="w-24 shrink-0 space-y-2">
                 <div className="h-8 text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center justify-center bg-zinc-900/50 rounded">
-                  Rep {i + 1}
+                  Rép {i + 1}
                 </div>
                 {participants.map(p => (
                   <div key={p.pid} className="h-14 flex items-center justify-center bg-zinc-900/30 rounded-md border border-zinc-800/50">
@@ -206,17 +203,17 @@ export default function Chrono() {
               </div>
             ))}
 
-            {/* Current Running Column */}
+            {/* Colonne en cours */}
             {isRunning && (
               <div className="w-32 shrink-0 space-y-2">
                 <div className="h-8 text-xs font-bold text-primary uppercase tracking-wider flex items-center justify-center bg-primary/10 rounded animate-pulse">
-                  Running
+                  En cours
                 </div>
                 {participants.map(p => (
                   <div key={p.pid} className="h-14 flex items-center justify-center">
                     {p.selected ? (
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="w-full h-full border-primary/30 hover:bg-primary/20 text-primary font-mono text-sm shadow-[0_0_15px_rgba(34,197,94,0.1)]"
                         onClick={() => handleLap(p.pid)}
                       >
@@ -236,37 +233,37 @@ export default function Chrono() {
         </div>
       </div>
 
-      {/* Controls */}
+      {/* Contrôles */}
       <div className="p-4 bg-zinc-950 border-t border-white/10 shrink-0 pb-safe">
         <div className="flex gap-2 max-w-md mx-auto">
           {!isRunning ? (
             <>
-              <Button 
-                variant="outline" 
-                size="lg" 
+              <Button
+                variant="outline"
+                size="lg"
                 className="w-16 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800"
                 onClick={handleReset}
               >
                 <RotateCcw className="w-5 h-5" />
               </Button>
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold uppercase tracking-wider"
                 onClick={handleStart}
               >
                 <Play className="w-5 h-5 mr-2 fill-current" />
-                Start
+                Démarrer
               </Button>
             </>
           ) : (
-            <Button 
-              variant="destructive" 
-              size="lg" 
+            <Button
+              variant="destructive"
+              size="lg"
               className="flex-1 text-lg font-bold uppercase tracking-wider"
               onClick={handleStop}
             >
               <Square className="w-5 h-5 mr-2 fill-current" />
-              Stop & Save
+              Arrêter et sauvegarder
             </Button>
           )}
         </div>

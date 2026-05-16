@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { useListSeries, useUpdateSeries, useDeleteSeries } from "@workspace/api-client-react";
 import { formatTime } from "@/lib/time";
@@ -10,12 +11,9 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function CalendarView() {
   const [date, setDate] = useState<Date>(new Date());
-  
+
   const dateKey = format(date, "yyyy-MM-dd");
   const { data: seriesList, isLoading } = useListSeries({ dateKey });
-  
-  // We would normally also query the counts per day to show dots, but using what we have.
-  // Actually, we might need a separate query for all days. For now we just show data for selected date.
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -24,13 +22,14 @@ export default function CalendarView() {
           mode="single"
           selected={date}
           onSelect={(d) => d && setDate(d)}
+          locale={fr}
           className="rounded-md border-none"
         />
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
         <h2 className="text-xl font-bold tracking-tight uppercase mb-4">
-          Series for {format(date, "MMMM d, yyyy")}
+          Séries du {format(date, "d MMMM yyyy", { locale: fr })}
         </h2>
 
         {isLoading ? (
@@ -39,7 +38,7 @@ export default function CalendarView() {
           </div>
         ) : seriesList?.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">No series recorded on this day.</p>
+            <p className="text-sm">Aucune série enregistrée ce jour-là.</p>
           </div>
         ) : (
           seriesList?.map(series => (
@@ -58,7 +57,7 @@ function SeriesCard({ series }: { series: any }) {
   const { toast } = useToast();
 
   const toggleInclude = (pid: number, currentInclude: boolean) => {
-    const newEntries = series.entries.map((e: any) => 
+    const newEntries = series.entries.map((e: any) =>
       e.pid === pid ? { ...e, include: !currentInclude } : e
     );
 
@@ -76,7 +75,7 @@ function SeriesCard({ series }: { series: any }) {
     deleteSeries.mutate({ id: series.id }, {
       onSuccess: () => {
         queryClient.invalidateQueries();
-        toast({ title: "Series deleted" });
+        toast({ title: "Série supprimée" });
       }
     });
   };
@@ -86,7 +85,7 @@ function SeriesCard({ series }: { series: any }) {
       <div className="p-3 border-b border-card-border bg-card-foreground/5 flex justify-between items-center">
         <div className="flex items-baseline gap-2">
           <span className="font-bold text-lg text-primary">{series.dist}m</span>
-          <span className="text-xs text-muted-foreground">ID: {series.id}</span>
+          <span className="text-xs text-muted-foreground">Série #{series.id}</span>
         </div>
         <Button variant="ghost" size="sm" onClick={handleDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10">
           <Trash2 className="w-4 h-4" />

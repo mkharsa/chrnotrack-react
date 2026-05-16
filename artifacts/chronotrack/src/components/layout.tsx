@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Calendar as CalendarIcon, Clock, TrendingUp } from "lucide-react";
+import { Activity, Calendar as CalendarIcon, Clock, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -24,7 +24,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <nav className="shrink-0 border-t border-border bg-card pb-safe">
         <div className="flex h-16">
           <NavItem href="/sessions" icon={<Activity />} label="Sessions" active={location === "/" || location.startsWith("/sessions")} />
-          <NavItem href="/calendar" icon={<CalendarIcon />} label="Calendar" active={location.startsWith("/calendar")} />
+          <NavItem href="/athletes" icon={<Users />} label="Athlètes" active={location.startsWith("/athletes")} />
+          <NavItem href="/calendar" icon={<CalendarIcon />} label="Calendrier" active={location.startsWith("/calendar")} />
           <NavItem href="/progression" icon={<TrendingUp />} label="Progression" active={location.startsWith("/progression")} />
         </div>
       </nav>

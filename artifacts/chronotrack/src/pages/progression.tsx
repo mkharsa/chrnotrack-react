@@ -6,29 +6,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 export default function Progression() {
-  const [groupBy, setGroupBy] = useState<'session'|'month'>('session');
+  const [groupBy, setGroupBy] = useState<'session' | 'month'>('session');
   const [distance, setDistance] = useState<string>("400");
-  
+
   const { data: distances } = useListDistances();
-  const { data: summary, isLoading: isSummaryLoading } = useGetProgressionSummary();
+  const { data: summary } = useGetProgressionSummary();
   const { data: progression, isLoading: isProgLoading } = useGetProgression({ dist: distance, groupBy });
 
   return (
     <div className="flex flex-col h-full bg-background">
       <div className="p-4 border-b border-border bg-card">
         <h2 className="text-xl font-bold tracking-tight uppercase mb-4">Progression</h2>
-        
-        {/* Global Summary */}
-        <div className="mb-6 space-y-2">
-          {summary?.map(s => (
-            <div key={s.participantId} className="flex justify-between items-center text-sm">
-              <span className="font-medium">{s.name}</span>
-              <span className="text-muted-foreground font-mono">{formatTime(s.globalAvgMs)} avg</span>
-            </div>
-          ))}
-        </div>
 
-        <div className="flex items-center gap-4">
+        {/* Résumé global */}
+        {summary && summary.length > 0 && (
+          <div className="mb-6 space-y-2">
+            {summary.map(s => (
+              <div key={s.participantId} className="flex justify-between items-center text-sm">
+                <span className="font-medium">{s.name}</span>
+                <span className="text-muted-foreground font-mono">{formatTime(s.globalAvgMs)} moy.</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 flex-wrap">
           <Select value={distance} onValueChange={setDistance}>
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Distance" />
@@ -43,10 +45,10 @@ export default function Progression() {
             </SelectContent>
           </Select>
 
-          <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as any)} className="w-[200px]">
+          <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as any)} className="w-[220px]">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="session">Session</TabsTrigger>
-              <TabsTrigger value="month">Month</TabsTrigger>
+              <TabsTrigger value="session">Par séance</TabsTrigger>
+              <TabsTrigger value="month">Par mois</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -55,7 +57,11 @@ export default function Progression() {
       <div className="flex-1 overflow-auto p-4 space-y-6">
         {isProgLoading ? (
           <div className="animate-pulse space-y-4">
-             {[1, 2].map(i => <div key={i} className="h-40 bg-card rounded-lg" />)}
+            {[1, 2].map(i => <div key={i} className="h-40 bg-card rounded-lg" />)}
+          </div>
+        ) : progression?.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            Aucune donnée pour cette distance.
           </div>
         ) : progression?.map(p => (
           <div key={p.participantId} className="bg-card border border-card-border rounded-lg overflow-hidden">
@@ -67,7 +73,7 @@ export default function Progression() {
                 <div key={idx} className="p-3 flex items-center justify-between text-sm">
                   <div className="flex-1">
                     <div className="font-medium">{period.label}</div>
-                    <div className="text-xs text-muted-foreground">{period.count} trials</div>
+                    <div className="text-xs text-muted-foreground">{period.count} essai{period.count > 1 ? "s" : ""}</div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-base">{formatTime(period.avgMs)}</span>

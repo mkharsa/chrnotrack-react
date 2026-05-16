@@ -7,6 +7,7 @@ import Sessions from "@/pages/sessions";
 import Chrono from "@/pages/chrono";
 import CalendarView from "@/pages/calendar";
 import Progression from "@/pages/progression";
+import Athletes from "@/pages/athletes";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -18,6 +19,7 @@ function Router() {
         <Route path="/" component={() => <Redirect to="/sessions" />} />
         <Route path="/sessions" component={Sessions} />
         <Route path="/sessions/:id/chrono" component={Chrono} />
+        <Route path="/athletes" component={Athletes} />
         <Route path="/calendar" component={CalendarView} />
         <Route path="/progression" component={Progression} />
         <Route component={NotFound} />
