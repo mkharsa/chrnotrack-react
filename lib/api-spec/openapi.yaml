@@ -3,20 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ChronoTrack API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: participants
+    description: Global participant management
+  - name: sessions
+    description: Training session management
+  - name: series
+    description: Timed series/entries management
+  - name: progression
+    description: Performance progression data
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,344 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /participants:
+    get:
+      operationId: listParticipants
+      tags: [participants]
+      summary: List all global participants
+      responses:
+        "200":
+          description: List of participants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Participant"
+    post:
+      operationId: createParticipant
+      tags: [participants]
+      summary: Create a global participant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Participant"
+
+  /participants/{id}:
+    delete:
+      operationId: deleteParticipant
+      tags: [participants]
+      summary: Delete a participant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List all sessions
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a new session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get a session with its participants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDetail"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteSession
+      tags: [sessions]
+      summary: Delete a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /sessions/bulk-delete:
+    post:
+      operationId: bulkDeleteSessions
+      tags: [sessions]
+      summary: Delete multiple sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkDeleteInput"
+      responses:
+        "200":
+          description: Deleted count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletedCount"
+
+  /sessions/{id}/participants:
+    post:
+      operationId: addSessionParticipant
+      tags: [sessions]
+      summary: Add a participant to a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionParticipantInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionParticipant"
+
+  /sessions/{id}/participants/{pid}:
+    patch:
+      operationId: updateSessionParticipant
+      tags: [sessions]
+      summary: Update a session participant (e.g. lastDist)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: pid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionParticipantUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionParticipant"
+
+  /series:
+    get:
+      operationId: listSeries
+      tags: [series]
+      summary: List series, optionally filtered by date
+      parameters:
+        - name: dateKey
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Date key in YYYY-MM-DD format
+      responses:
+        "200":
+          description: List of series
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Series"
+    post:
+      operationId: createSeries
+      tags: [series]
+      summary: Create a new series entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeriesInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Series"
+
+  /series/{id}:
+    patch:
+      operationId: updateSeries
+      tags: [series]
+      summary: Update a series (e.g. toggle include)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeriesUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Series"
+    delete:
+      operationId: deleteSeries
+      tags: [series]
+      summary: Delete a series
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /series/by-date:
+    get:
+      operationId: listSeriesByDate
+      tags: [series]
+      summary: Get all dates that have series (for calendar dots)
+      responses:
+        "200":
+          description: Map of dates to series count
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DateSeriesCount"
+
+  /progression:
+    get:
+      operationId: getProgression
+      tags: [progression]
+      summary: Get progression stats per participant
+      parameters:
+        - name: dist
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Filter by distance (e.g. 400)
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [session, month]
+      responses:
+        "200":
+          description: Progression data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParticipantProgression"
+
+  /progression/summary:
+    get:
+      operationId: getProgressionSummary
+      tags: [progression]
+      summary: Global averages per participant across all distances
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParticipantSummary"
+
+  /progression/distances:
+    get:
+      operationId: listDistances
+      tags: [progression]
+      summary: List all distinct distances used in series
+      responses:
+        "200":
+          description: List of distances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +380,243 @@ components:
       required:
         - status
 
+    Participant:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        createdAt:
+          type: string
+      required: [id, name, createdAt]
+
+    ParticipantInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+      required: [name]
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+        defaultDist:
+          type: ["string", "null"]
+        participantCount:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, name, date, participantCount, createdAt]
+
+    SessionInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        date:
+          type: string
+        defaultDist:
+          type: ["string", "null"]
+        participantIds:
+          type: array
+          items:
+            type: integer
+      required: [name, date]
+
+    SessionParticipant:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        participantId:
+          type: integer
+        name:
+          type: string
+        lastDist:
+          type: ["string", "null"]
+      required: [id, sessionId, participantId, name]
+
+    SessionParticipantInput:
+      type: object
+      properties:
+        participantId:
+          type: ["integer", "null"]
+        name:
+          type: string
+          minLength: 1
+      required: [name]
+
+    SessionParticipantUpdate:
+      type: object
+      properties:
+        lastDist:
+          type: ["string", "null"]
+
+    SessionDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+        defaultDist:
+          type: ["string", "null"]
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionParticipant"
+        createdAt:
+          type: string
+      required: [id, name, date, participants, createdAt]
+
+    BulkDeleteInput:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+      required: [ids]
+
+    DeletedCount:
+      type: object
+      properties:
+        deleted:
+          type: integer
+      required: [deleted]
+
+    SeriesEntry:
+      type: object
+      properties:
+        pid:
+          type: integer
+        name:
+          type: string
+        timeMs:
+          type: integer
+        include:
+          type: boolean
+      required: [pid, name, timeMs, include]
+
+    Series:
+      type: object
+      properties:
+        id:
+          type: integer
+        dateKey:
+          type: string
+        sessionId:
+          type: ["integer", "null"]
+        dist:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SeriesEntry"
+        createdAt:
+          type: string
+      required: [id, dateKey, dist, entries, createdAt]
+
+    SeriesInput:
+      type: object
+      properties:
+        dateKey:
+          type: string
+        sessionId:
+          type: ["integer", "null"]
+        dist:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SeriesEntry"
+      required: [dateKey, dist, entries]
+
+    SeriesUpdate:
+      type: object
+      properties:
+        dist:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SeriesEntry"
+
+    DateSeriesCount:
+      type: object
+      properties:
+        dateKey:
+          type: string
+        count:
+          type: integer
+      required: [dateKey, count]
+
+    ParticipantProgression:
+      type: object
+      properties:
+        participantId:
+          type: integer
+        name:
+          type: string
+        dist:
+          type: string
+        periods:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgressionPeriod"
+      required: [participantId, name, dist, periods]
+
+    ProgressionPeriod:
+      type: object
+      properties:
+        label:
+          type: string
+        avgMs:
+          type: integer
+        count:
+          type: integer
+        trend:
+          type: ["string", "null"]
+          enum: ["better", "worse", "same", null]
+      required: [label, avgMs, count]
+
+    ParticipantSummary:
+      type: object
+      properties:
+        participantId:
+          type: integer
+        name:
+          type: string
+        globalAvgMs:
+          type: integer
+        totalEntries:
+          type: integer
+        distBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/DistBreakdown"
+      required: [participantId, name, globalAvgMs, totalEntries, distBreakdown]
+
+    DistBreakdown:
+      type: object
+      properties:
+        dist:
+          type: string
+        avgMs:
+          type: integer
+        count:
+          type: integer
+      required: [dist, avgMs, count]
