@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
-import { useGetSession, useCreateSeries, getGetSessionQueryKey } from "@workspace/api-client-react";
+import { useGetSession, useCreateSeries } from "@workspace/api-client-react";
 import { formatTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Play, Square, RotateCcw, Flag, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
 
 type RepRecord = {
   timeMs: number;
@@ -17,6 +17,7 @@ type ParticipantState = {
   spId: number;
   pid: number;
   name: string;
+  selected: boolean;
   running: boolean;
   startTime: number | null;
   currentMs: number;
@@ -33,7 +34,6 @@ export default function Chrono() {
   const [expandedReps, setExpandedReps] = useState<Set<string>>(new Set());
   const createSeries = useCreateSeries();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -43,6 +43,7 @@ export default function Chrono() {
           spId: p.id,
           pid: p.participantId ?? p.id,
           name: p.name,
+          selected: false,
           running: false,
           startTime: null,
           currentMs: 0,
@@ -54,26 +55,23 @@ export default function Chrono() {
     }
   }, [session, participants.length]);
 
-  // Shared interval for all running athletes
+  // Shared interval ticking all running athletes
   useEffect(() => {
     intervalRef.current = window.setInterval(() => {
       const now = Date.now();
       setParticipants(prev => {
-        const anyRunning = prev.some(p => p.running);
-        if (!anyRunning) return prev;
+        if (!prev.some(p => p.running)) return prev;
         return prev.map(p =>
-          p.running && p.startTime !== null
-            ? { ...p, currentMs: now - p.startTime }
-            : p
+          p.running && p.startTime !== null ? { ...p, currentMs: now - p.startTime } : p
         );
       });
     }, 16);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
-  const handleStart = useCallback((spId: number) => {
+  // ── Individual controls ──────────────────────────────────────────────────
+
+  const startOne = useCallback((spId: number) => {
     setParticipants(prev =>
       prev.map(p =>
         p.spId === spId
@@ -83,20 +81,19 @@ export default function Chrono() {
     );
   }, []);
 
-  const handleLap = useCallback((spId: number) => {
+  const lapOne = useCallback((spId: number) => {
     setParticipants(prev =>
       prev.map(p => {
         if (p.spId !== spId || !p.running || p.startTime === null) return p;
-        const elapsed = Date.now() - p.startTime;
-        return { ...p, currentLaps: [...p.currentLaps, elapsed] };
+        return { ...p, currentLaps: [...p.currentLaps, Date.now() - p.startTime] };
       })
     );
   }, []);
 
-  const handleStop = useCallback((spId: number) => {
+  const stopOne = useCallback((spId: number, saveToBackend = true) => {
     setParticipants(prev => {
       const p = prev.find(x => x.spId === spId);
-      if (!p || !p.running || p.startTime === null || !session || !distance) return prev;
+      if (!p || !p.running || p.startTime === null) return prev;
       const finalMs = Date.now() - p.startTime;
       const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
       const updated = prev.map(x =>
@@ -104,28 +101,94 @@ export default function Chrono() {
           ? { ...x, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...x.reps, newRep] }
           : x
       );
-
-      // Save series
-      createSeries.mutate({
-        data: {
-          dateKey: session.date,
-          sessionId: session.id,
-          dist: distance,
-          entries: [{ pid: p.pid, name: p.name, timeMs: finalMs, include: true }]
-        }
-      }, {
-        onSuccess: () => {
-          toast({ title: `Rép ${p.reps.length + 1} — ${p.name} : ${formatTime(finalMs)}` });
-        }
-      });
-
+      if (saveToBackend && session && distance) {
+        createSeries.mutate({
+          data: {
+            dateKey: session.date,
+            sessionId: session.id,
+            dist: distance,
+            entries: [{ pid: p.pid, name: p.name, timeMs: finalMs, include: true }]
+          }
+        }, {
+          onSuccess: () => toast({ title: `Rép ${p.reps.length + 1} — ${p.name} : ${formatTime(finalMs)}` })
+        });
+      }
       return updated;
     });
   }, [session, distance, createSeries, toast]);
 
+  // ── Group controls ───────────────────────────────────────────────────────
+
+  const selectedParticipants = participants.filter(p => p.selected);
+  const selectedNotRunning = selectedParticipants.filter(p => !p.running);
+  const selectedRunning = selectedParticipants.filter(p => p.running);
+
+  const startSelected = () => {
+    const now = Date.now();
+    setParticipants(prev =>
+      prev.map(p =>
+        p.selected && !p.running
+          ? { ...p, running: true, startTime: now, currentMs: 0, currentLaps: [] }
+          : p
+      )
+    );
+  };
+
+  const stopSelected = () => {
+    // Snapshot the state before mutation
+    setParticipants(prev => {
+      const now = Date.now();
+      let entriesToSave: { pid: number; name: string; timeMs: number; repIndex: number }[] = [];
+      const updated = prev.map(p => {
+        if (!p.selected || !p.running || p.startTime === null) return p;
+        const finalMs = now - p.startTime;
+        const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
+        entriesToSave.push({ pid: p.pid, name: p.name, timeMs: finalMs, repIndex: p.reps.length + 1 });
+        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep] };
+      });
+      // Save series for each stopped athlete
+      if (session && distance && entriesToSave.length > 0) {
+        for (const e of entriesToSave) {
+          createSeries.mutate({
+            data: {
+              dateKey: session.date,
+              sessionId: session.id,
+              dist: distance,
+              entries: [{ pid: e.pid, name: e.name, timeMs: e.timeMs, include: true }]
+            }
+          }, {
+            onSuccess: () => toast({ title: `Rép ${e.repIndex} — ${e.name} : ${formatTime(e.timeMs)}` })
+          });
+        }
+      }
+      return updated;
+    });
+  };
+
+  const lapSelected = () => {
+    const now = Date.now();
+    setParticipants(prev =>
+      prev.map(p => {
+        if (!p.selected || !p.running || p.startTime === null) return p;
+        return { ...p, currentLaps: [...p.currentLaps, now - p.startTime] };
+      })
+    );
+  };
+
+  const toggleSelect = (spId: number) => {
+    setParticipants(prev =>
+      prev.map(p => p.spId === spId ? { ...p, selected: !p.selected } : p)
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = participants.every(p => p.selected);
+    setParticipants(prev => prev.map(p => ({ ...p, selected: !allSelected })));
+  };
+
   const handleReset = () => {
     setParticipants(prev =>
-      prev.map(p => ({ ...p, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [] }))
+      prev.map(p => ({ ...p, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [], selected: false }))
     );
   };
 
@@ -140,7 +203,8 @@ export default function Chrono() {
 
   if (!session) return null;
 
-  const anyRunning = participants.some(p => p.running);
+  const anySelected = selectedParticipants.length > 0;
+  const allSelected = participants.length > 0 && participants.every(p => p.selected);
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-white">
@@ -155,7 +219,6 @@ export default function Chrono() {
               onChange={e => setDistance(e.target.value)}
               className="h-6 w-20 text-xs bg-zinc-900 border-zinc-800 font-mono text-primary"
               placeholder="400"
-              disabled={anyRunning}
             />
             <span className="text-xs text-zinc-500">m</span>
           </div>
@@ -165,23 +228,36 @@ export default function Chrono() {
           size="sm"
           className="border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
           onClick={handleReset}
-          disabled={anyRunning}
         >
           <RotateCcw className="w-4 h-4 mr-1" />
           Reset
         </Button>
       </div>
 
+      {/* Select-all row */}
+      <div className="px-4 py-2 border-b border-white/5 flex items-center gap-3 bg-zinc-900/40">
+        <Checkbox
+          checked={allSelected}
+          onCheckedChange={toggleSelectAll}
+          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+        />
+        <span className="text-xs text-zinc-500 uppercase tracking-wider">
+          {anySelected
+            ? `${selectedParticipants.length} sélectionné${selectedParticipants.length > 1 ? "s" : ""}`
+            : "Tout sélectionner"}
+        </span>
+      </div>
+
       {/* Athletes */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-6">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${anySelected ? "pb-24" : "pb-6"}`}>
         {participants.map(p => (
           <AthleteCard
             key={p.spId}
             participant={p}
-            onStart={handleStart}
-            onStop={handleStop}
-            onLap={handleLap}
-            distanceDisabled={anyRunning && !p.running}
+            onStart={startOne}
+            onStop={spId => stopOne(spId, true)}
+            onLap={lapOne}
+            onToggleSelect={toggleSelect}
             expandedReps={expandedReps}
             onToggleRep={toggleRepExpanded}
           />
@@ -192,6 +268,49 @@ export default function Chrono() {
           </div>
         )}
       </div>
+
+      {/* Group action bar */}
+      {anySelected && (
+        <div className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-white/10 p-3 pb-safe flex items-center gap-2 shadow-2xl">
+          <span className="text-xs text-zinc-500 shrink-0 mr-1">
+            {selectedParticipants.length} athlète{selectedParticipants.length > 1 ? "s" : ""}
+          </span>
+
+          {selectedNotRunning.length > 0 && (
+            <Button
+              size="sm"
+              className="flex-1 bg-primary text-black hover:bg-primary/90 font-bold text-xs uppercase tracking-wider"
+              onClick={startSelected}
+            >
+              <Play className="w-3 h-3 mr-1.5 fill-current" />
+              Démarrer ({selectedNotRunning.length})
+            </Button>
+          )}
+
+          {selectedRunning.length > 0 && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-primary/40 text-primary hover:bg-primary/20 font-mono text-xs"
+                onClick={lapSelected}
+              >
+                <Flag className="w-3 h-3 mr-1.5" />
+                LAP
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="flex-1 font-bold text-xs uppercase tracking-wider"
+                onClick={stopSelected}
+              >
+                <Square className="w-3 h-3 mr-1.5 fill-current" />
+                Arrêter ({selectedRunning.length})
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -201,7 +320,7 @@ function AthleteCard({
   onStart,
   onStop,
   onLap,
-  distanceDisabled,
+  onToggleSelect,
   expandedReps,
   onToggleRep,
 }: {
@@ -209,32 +328,62 @@ function AthleteCard({
   onStart: (spId: number) => void;
   onStop: (spId: number) => void;
   onLap: (spId: number) => void;
-  distanceDisabled: boolean;
+  onToggleSelect: (spId: number) => void;
   expandedReps: Set<string>;
   onToggleRep: (key: string) => void;
 }) {
-  const avgMs = p.reps.length > 0
-    ? Math.round(p.reps.reduce((s, r) => s + r.timeMs, 0) / p.reps.length)
-    : null;
+  const avgMs =
+    p.reps.length > 0
+      ? Math.round(p.reps.reduce((s, r) => s + r.timeMs, 0) / p.reps.length)
+      : null;
 
   return (
-    <div className={`rounded-xl border transition-all ${p.running ? 'border-primary/60 bg-primary/5 shadow-[0_0_20px_rgba(34,197,94,0.08)]' : 'border-zinc-800 bg-zinc-900/70'}`}>
+    <div
+      className={`rounded-xl border transition-all ${
+        p.running
+          ? "border-primary/60 bg-primary/5 shadow-[0_0_20px_rgba(34,197,94,0.08)]"
+          : p.selected
+          ? "border-primary/30 bg-primary/[0.03]"
+          : "border-zinc-800 bg-zinc-900/70"
+      }`}
+    >
       {/* Main row */}
       <div className="flex items-center gap-3 p-3">
+        {/* Checkbox */}
+        <Checkbox
+          checked={p.selected}
+          onCheckedChange={() => onToggleSelect(p.spId)}
+          className="shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+        />
+
         {/* Avatar */}
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${p.running ? 'bg-primary text-black' : 'bg-zinc-800 text-zinc-400'}`}>
+        <div
+          className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
+            p.running ? "bg-primary text-black" : "bg-zinc-800 text-zinc-400"
+          }`}
+        >
           {p.name.charAt(0).toUpperCase()}
         </div>
 
         {/* Name + timer */}
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{p.name}</div>
-          <div className={`font-mono text-xl font-bold tabular-nums tracking-tight ${p.running ? 'text-primary' : 'text-zinc-500'}`}>
-            {formatTime(p.running ? p.currentMs : (p.reps.length > 0 ? p.reps[p.reps.length - 1].timeMs : 0))}
+          <div
+            className={`font-mono text-xl font-bold tabular-nums tracking-tight ${
+              p.running ? "text-primary" : "text-zinc-500"
+            }`}
+          >
+            {formatTime(
+              p.running
+                ? p.currentMs
+                : p.reps.length > 0
+                ? p.reps[p.reps.length - 1].timeMs
+                : 0
+            )}
           </div>
         </div>
 
-        {/* Controls */}
+        {/* Individual controls */}
         <div className="flex items-center gap-2 shrink-0">
           {p.running ? (
             <>
@@ -264,7 +413,7 @@ function AthleteCard({
               onClick={() => onStart(p.spId)}
             >
               <Play className="w-3 h-3 mr-1 fill-current" />
-              {p.reps.length > 0 ? `Rép ${p.reps.length + 1}` : 'Start'}
+              {p.reps.length > 0 ? `Rép ${p.reps.length + 1}` : "Start"}
             </Button>
           )}
         </div>
@@ -276,7 +425,10 @@ function AthleteCard({
           {p.currentLaps.map((ms, i) => {
             const lapDuration = i === 0 ? ms : ms - p.currentLaps[i - 1];
             return (
-              <span key={i} className="text-xs font-mono bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5">
+              <span
+                key={i}
+                className="text-xs font-mono bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5"
+              >
                 L{i + 1} {formatTime(lapDuration)} @ {formatTime(ms)}
               </span>
             );
@@ -310,12 +462,20 @@ function AthleteCard({
                     className="w-full px-3 py-2 flex flex-col items-center"
                     onClick={() => rep.laps.length > 1 && onToggleRep(key)}
                   >
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Rép {i + 1}</span>
-                    <span className="font-mono text-sm font-bold text-zinc-200">{formatTime(rep.timeMs)}</span>
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">
+                      Rép {i + 1}
+                    </span>
+                    <span className="font-mono text-sm font-bold text-zinc-200">
+                      {formatTime(rep.timeMs)}
+                    </span>
                     {rep.laps.length > 1 && (
                       <span className="text-[10px] text-zinc-600 mt-0.5 flex items-center gap-0.5">
                         {rep.laps.length} laps
-                        {expanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                        {expanded ? (
+                          <ChevronUp className="w-2.5 h-2.5" />
+                        ) : (
+                          <ChevronDown className="w-2.5 h-2.5" />
+                        )}
                       </span>
                     )}
                   </button>
