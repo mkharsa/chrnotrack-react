@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
-import { useGetSession, useCreateSeries, useAddSessionParticipant, useListParticipants, useCreateParticipant, getGetSessionQueryKey } from "@workspace/api-client-react";
+import { useGetSession, useCreateSeries, useAddSessionParticipant, useListParticipants, useCreateParticipant, getGetSessionQueryKey } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,8 @@ type RepRecord = {
 };
 
 type ParticipantState = {
-  spId: number;
-  pid: number;
+  spId: string;
+  pid: string;
   name: string;
   selected: boolean;
   running: boolean;
@@ -32,7 +32,7 @@ type ParticipantState = {
 
 export default function Chrono() {
   const { id } = useParams();
-  const sessionId = parseInt(id || "0", 10);
+  const sessionId = id || "";
   const { data: session } = useGetSession(sessionId);
   const [participants, setParticipants] = useState<ParticipantState[]>([]);
   const [distance, setDistance] = useState("");
@@ -49,7 +49,7 @@ export default function Chrono() {
   const intervalRef = useRef<number | null>(null);
 
   // Add a new athlete to the local state (called after successful API add)
-  const addAthleteToLocal = useCallback((spId: number, pid: number, name: string) => {
+  const addAthleteToLocal = useCallback((spId: string, pid: string, name: string) => {
     setParticipants(prev => {
       if (prev.some(p => p.spId === spId)) return prev;
       return [...prev, { spId, pid, name, selected: false, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [] }];
@@ -418,10 +418,10 @@ function AthleteCard({
   onToggleRep,
 }: {
   participant: ParticipantState;
-  onStart: (spId: number) => void;
-  onStop: (spId: number) => void;
-  onLap: (spId: number) => void;
-  onToggleSelect: (spId: number) => void;
+  onStart: (spId: string) => void;
+  onStop: (spId: string) => void;
+  onLap: (spId: string) => void;
+  onToggleSelect: (spId: string) => void;
   expandedReps: Set<string>;
   onToggleRep: (key: string) => void;
 }) {
@@ -565,18 +565,18 @@ function AddAthleteDialog({
   sessionId,
   onAdded,
 }: {
-  sessionId: number;
-  onAdded: (spId: number, pid: number, name: string) => void;
+  sessionId: string;
+  onAdded: (spId: string, pid: string, name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [selectedPids, setSelectedPids] = useState<Set<number>>(new Set());
+  const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const { data: allParticipants } = useListParticipants();
   const addToSession = useAddSessionParticipant();
   const createParticipant = useCreateParticipant();
   const { toast } = useToast();
 
-  const togglePid = (pid: number) => {
+  const togglePid = (pid: string) => {
     setSelectedPids(prev => {
       const next = new Set(prev);
       if (next.has(pid)) next.delete(pid); else next.add(pid);

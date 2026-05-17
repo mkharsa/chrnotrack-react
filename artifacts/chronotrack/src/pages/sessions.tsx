@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey } from "@workspace/api-client-react";
+import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey } from "@/lib/firebase-api";
 import {
   format, isToday, isThisWeek, isThisMonth, parseISO,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 type Session = {
-  id: number;
+  id: string;
   name: string;
   date: string;
   participantCount: number;
@@ -115,9 +115,9 @@ function ListView({
 }: {
   sessions: Session[];
   selectedIds: Set<number>;
-  onToggle: (id: number) => void;
+  onToggle: (id: string) => void;
   onToggleAll: () => void;
-  onNavigate: (id: number) => void;
+  onNavigate: (id: string) => void;
 }) {
   const groups = groupSessions(sessions);
   const allSelected = sessions.length > 0 && selectedIds.size === sessions.length;
@@ -344,7 +344,7 @@ function SessionsCalendarView({
 
 export default function Sessions() {
   const { data: sessions, isLoading } = useListSessions();
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -379,7 +379,7 @@ export default function Sessions() {
     });
   };
 
-  const navigateTo = (id: number) => setLocation(`/sessions/${id}/chrono`);
+  const navigateTo = (id: string) => setLocation(`/sessions/${id}/chrono`);
 
   return (
     <div className="flex flex-col h-full">

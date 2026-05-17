@@ -4,7 +4,7 @@ import {
   useCreateParticipant,
   useDeleteParticipant,
   getListParticipantsQueryKey,
-} from "@workspace/api-client-react";
+} from "@/lib/firebase-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,8 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 export default function Athletes() {
   const { data: participants, isLoading } = useListParticipants();
   const [newName, setNewName] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const createParticipant = useCreateParticipant();
   const deleteParticipant = useDeleteParticipant();
@@ -38,7 +38,7 @@ export default function Athletes() {
     );
   };
 
-  const handleDeleteOne = (id: number, name: string) => {
+  const handleDeleteOne = (id: string, name: string) => {
     deleteParticipant.mutate(
       { id },
       {
@@ -90,7 +90,7 @@ export default function Athletes() {
   // Note: the API doesn't have a PATCH /participants/:id yet — we simulate rename
   // by deleting and recreating. For now we just show the edit UI and note it.
   // If you want true rename, add a PATCH endpoint.
-  const confirmEdit = (id: number, oldName: string) => {
+  const confirmEdit = (id: string, oldName: string) => {
     const trimmed = editValue.trim();
     if (!trimmed || trimmed === oldName) { cancelEdit(); return; }
     // Delete old + create new

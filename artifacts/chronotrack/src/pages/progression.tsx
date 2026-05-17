@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetProgression, useGetProgressionSummary, useListDistances } from "@workspace/api-client-react";
+import { useGetProgression, useGetProgressionSummary, useListDistances } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

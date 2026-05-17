@@ -2,22 +2,11 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
-import { useListSeries, useUpdateSeries, useDeleteSeries, getListSeriesQueryKey } from "@workspace/api-client-react";
+import {
+  useListSeries, useUpdateSeries, useDeleteSeries, getListSeriesQueryKey,
+  type Series, type SeriesEntry,
+} from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
-
-type SeriesEntry = {
-  pid: number;
-  name: string;
-  timeMs: number;
-  include: boolean;
-};
-
-type Series = {
-  id: number;
-  dist: string;
-  dateKey: string;
-  entries: SeriesEntry[];
-};
 import { Button } from "@/components/ui/button";
 import { Trash2, CheckCircle, XCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -70,18 +59,14 @@ function SeriesCard({ series, dateKey }: { series: Series; dateKey: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const toggleInclude = (pid: number, currentInclude: boolean) => {
+  const toggleInclude = (pid: string, currentInclude: boolean) => {
     const newEntries = series.entries.map((e: SeriesEntry) =>
       e.pid === pid ? { ...e, include: !currentInclude } : e
     );
-
-    updateSeries.mutate({
-      id: series.id,
-      data: { entries: newEntries }
-    }, {
+    updateSeries.mutate({ id: series.id, data: { entries: newEntries } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListSeriesQueryKey({ dateKey }) });
-      }
+      },
     });
   };
 
@@ -90,7 +75,7 @@ function SeriesCard({ series, dateKey }: { series: Series; dateKey: string }) {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListSeriesQueryKey({ dateKey }) });
         toast({ title: "Série supprimée" });
-      }
+      },
     });
   };
 
@@ -99,7 +84,7 @@ function SeriesCard({ series, dateKey }: { series: Series; dateKey: string }) {
       <div className="p-3 border-b border-card-border bg-card-foreground/5 flex justify-between items-center">
         <div className="flex items-baseline gap-2">
           <span className="font-bold text-lg text-primary">{series.dist}m</span>
-          <span className="text-xs text-muted-foreground">Série #{series.id}</span>
+          <span className="text-xs text-muted-foreground">Série #{series.id.slice(0, 6)}</span>
         </div>
         <Button variant="ghost" size="sm" onClick={handleDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10">
           <Trash2 className="w-4 h-4" />
@@ -107,7 +92,7 @@ function SeriesCard({ series, dateKey }: { series: Series; dateKey: string }) {
       </div>
       <div className="divide-y divide-card-border">
         {series.entries.map((entry: SeriesEntry) => (
-          <div key={entry.pid} className={`p-3 flex items-center justify-between ${!entry.include ? 'opacity-50' : ''}`}>
+          <div key={entry.pid} className={`p-3 flex items-center justify-between ${!entry.include ? "opacity-50" : ""}`}>
             <div className="flex items-center gap-3">
               <button onClick={() => toggleInclude(entry.pid, entry.include)} className="text-muted-foreground hover:text-foreground transition-colors">
                 {entry.include ? <CheckCircle className="w-5 h-5 text-primary" /> : <XCircle className="w-5 h-5" />}
