@@ -9,7 +9,7 @@ import { fr } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, UserPlus, List, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, ChevronDown, UserPlus, List, ChevronLeft } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseDistance } from "@/lib/time";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -115,11 +115,24 @@ function ListView({
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
   const groups = groupSessions(sessions, groupBy);
   const allSelected = sessions.length > 0 && selectedIds.size === sessions.length;
+  // La section la plus récente est ouverte par défaut
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() =>
+    new Set(groups.length > 0 ? [groups[0].label] : [])
+  );
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  };
 
   return (
-    <div className="space-y-5 pb-6">
-      {/* Sélecteur de groupement */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-2 pb-6">
+      {/* Barre contrôles */}
+      <div className="flex items-center justify-between mb-3">
         <div
           className="flex items-center gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
           onClick={onToggleAll}
@@ -139,7 +152,7 @@ function ListView({
               groupBy === "day" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Par jour
+            Jour
           </button>
           <button
             onClick={() => setGroupBy("month")}
@@ -147,34 +160,76 @@ function ListView({
               groupBy === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Par mois
+            Mois
           </button>
         </div>
       </div>
 
-      {/* Sections */}
-      {groups.map(group => (
-        <div key={group.label}>
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider capitalize">
-              {group.label}
-            </span>
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground">{group.sessions.length}</span>
+      {/* Sections dépliantes */}
+      {groups.map(group => {
+        const isOpen = openGroups.has(group.label);
+        return (
+          <div key={group.label} className="bg-card border border-border rounded-xl overflow-hidden">
+            {/* En-tête cliquable */}
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors"
+              onClick={() => toggleGroup(group.label)}
+            >
+              <span className="text-sm font-semibold capitalize">{group.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {group.sessions.length}
+                </span>
+                {isOpen
+                  ? <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform" />
+                  : <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform" />
+                }
+              </div>
+            </button>
+
+            {/* Contenu dépliant */}
+            {isOpen && (
+              <div className="border-t border-border divide-y divide-border">
+                {group.sessions.map(s => (
+                  <div
+                    key={s.id}
+                    className={`group flex items-center px-4 py-3 cursor-pointer transition-colors ${
+                      selectedIds.has(s.id) ? "bg-primary/5" : "hover:bg-muted/30"
+                    }`}
+                    onClick={() => onNavigate(s.id)}
+                  >
+                    <div className="mr-3 shrink-0" onClick={e => { e.stopPropagation(); onToggle(s.id); }}>
+                      <Checkbox
+                        checked={selectedIds.has(s.id)}
+                        onCheckedChange={() => onToggle(s.id)}
+                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-semibold truncate">{s.name}</span>
+                        <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">
+                          {format(parseISO(s.date), "d MMM", { locale: fr })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          <span>{s.participantCount} athlète{s.participantCount !== 1 ? "s" : ""}</span>
+                        </div>
+                        {s.defaultDist && (
+                          <span className="font-mono text-primary font-medium">{s.defaultDist}m</span>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground ml-3 shrink-0 group-hover:text-primary transition-colors" />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="space-y-2">
-            {group.sessions.map(s => (
-              <SessionCard
-                key={s.id}
-                session={s}
-                selected={selectedIds.has(s.id)}
-                onToggle={() => onToggle(s.id)}
-                onClick={() => onNavigate(s.id)}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
