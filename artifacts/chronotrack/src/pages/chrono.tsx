@@ -8,8 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Play, Square, RotateCcw, Flag, ChevronDown, ChevronUp, Timer, UserPlus, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
@@ -59,22 +57,27 @@ export default function Chrono() {
 
   useEffect(() => {
     if (session && participants.length === 0) {
+      const saved = sessionId ? localStorage.getItem(`chrono-${sessionId}`) : null;
+      const savedReps: Record<string, RepRecord[]> = saved ? (JSON.parse(saved).repsMap ?? {}) : {};
       setParticipants(
-        session.participants.map(p => ({
-          spId: p.id,
-          pid: p.participantId ?? p.id,
-          name: p.name,
-          selected: false,
-          running: false,
-          startTime: null,
-          currentMs: 0,
-          currentLaps: [],
-          reps: [],
-        }))
+        session.participants.map(p => {
+          const reps = savedReps[p.id] ?? [];
+          return {
+            spId: p.id,
+            pid: p.participantId ?? p.id,
+            name: p.name,
+            selected: false,
+            running: false,
+            startTime: null,
+            currentMs: reps.length > 0 ? reps[reps.length - 1].timeMs : 0,
+            currentLaps: [],
+            reps,
+          };
+        })
       );
       if (session.defaultDist) setDistance(session.defaultDist);
     }
-  }, [session, participants.length]);
+  }, [session, participants.length, sessionId]);
 
   // Single shared interval — ticks global timer + all running athletes
   useEffect(() => {
@@ -111,36 +114,32 @@ export default function Chrono() {
     setGlobalMs(0);
   };
 
-  // ── Save series to API + Firebase ─────────────────────────────────────
+  // ── Save series to Firestore ──────────────────────────────────────────
 
-  const saveSeries = useCallback((pid: number, name: string, timeMs: number, repIndex: number) => {
+  const saveSeries = useCallback((pid: string, name: string, timeMs: number, repIndex: number) => {
     if (!session || !distance) return;
     createSeries.mutate({
       data: {
         dateKey: session.date,
         sessionId: session.id,
         dist: distance,
-        entries: [{ pid, name, timeMs, include: true }]
+        entries: [{ pid, name, timeMs, include: true }],
       }
     }, {
-      onSuccess: () => toast({ title: `Rép ${repIndex} — ${name} : ${formatTime(timeMs)}` })
+      onSuccess: () => toast({ title: `Rép ${repIndex} — ${name} : ${formatTime(timeMs)}` }),
     });
-    addDoc(collection(db, "series"), {
-      dateKey: session.date,
-      sessionId: session.id,
-      dist: distance,
-      pid,
-      name,
-      timeMs,
-      include: true,
-      repIndex,
-      createdAt: serverTimestamp(),
-    }).catch((err: unknown) => { console.error("Firebase write failed:", err); });
   }, [session, distance, createSeries, toast]);
+
+  const saveRepsToStorage = useCallback((updated: ParticipantState[]) => {
+    if (!sessionId) return;
+    const repsMap: Record<string, RepRecord[]> = {};
+    updated.forEach(p => { repsMap[p.spId] = p.reps; });
+    localStorage.setItem(`chrono-${sessionId}`, JSON.stringify({ repsMap }));
+  }, [sessionId]);
 
   // ── Individual athlete controls ───────────────────────────────────────
 
-  const startOne = useCallback((spId: number) => {
+  const startOne = useCallback((spId: string) => {
     setParticipants(prev =>
       prev.map(p =>
         p.spId === spId
@@ -150,7 +149,7 @@ export default function Chrono() {
     );
   }, []);
 
-  const lapOne = useCallback((spId: number) => {
+  const lapOne = useCallback((spId: string) => {
     setParticipants(prev =>
       prev.map(p => {
         if (p.spId !== spId || !p.running || p.startTime === null) return p;
@@ -159,20 +158,22 @@ export default function Chrono() {
     );
   }, []);
 
-  const stopOne = useCallback((spId: number) => {
+  const stopOne = useCallback((spId: string) => {
     setParticipants(prev => {
       const p = prev.find(x => x.spId === spId);
       if (!p || !p.running || p.startTime === null) return prev;
       const finalMs = Date.now() - p.startTime;
       const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
       saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
-      return prev.map(x =>
+      const next = prev.map(x =>
         x.spId === spId
           ? { ...x, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...x.reps, newRep] }
           : x
       );
+      saveRepsToStorage(next);
+      return next;
     });
-  }, [saveSeries]);
+  }, [saveSeries, saveRepsToStorage]);
 
   // ── Group controls ────────────────────────────────────────────────────
 
@@ -193,15 +194,17 @@ export default function Chrono() {
 
   const stopSelected = () => {
     const now = Date.now();
-    setParticipants(prev =>
-      prev.map(p => {
+    setParticipants(prev => {
+      const next = prev.map(p => {
         if (!p.selected || !p.running || p.startTime === null) return p;
         const finalMs = now - p.startTime;
         const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
         saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
         return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep] };
-      })
-    );
+      });
+      saveRepsToStorage(next);
+      return next;
+    });
   };
 
   const lapSelected = () => {
@@ -214,7 +217,7 @@ export default function Chrono() {
     );
   };
 
-  const toggleSelect = (spId: number) => {
+  const toggleSelect = (spId: string) => {
     setParticipants(prev =>
       prev.map(p => p.spId === spId ? { ...p, selected: !p.selected } : p)
     );
@@ -226,6 +229,7 @@ export default function Chrono() {
   };
 
   const handleReset = () => {
+    if (sessionId) localStorage.removeItem(`chrono-${sessionId}`);
     setParticipants(prev =>
       prev.map(p => ({ ...p, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [], selected: false }))
     );
