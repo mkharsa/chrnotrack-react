@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "MA3oYjdL4slQs8i7RA0E5"
+uri = "file://chronotrack-export.zip"
+type = "unspecified"
+title = "ChronoTrack — index.html (app complète)"
+
+[[outputs]]
+id = "TgRhnQZwMZWH3G0PEIUhb"
+uri = "file://artifacts/chronotrack/dist/export/chronotrack-export.zip"
+type = "unspecified"
+title = "ChronoTrack — index.html (thème clair + Firebase)"
