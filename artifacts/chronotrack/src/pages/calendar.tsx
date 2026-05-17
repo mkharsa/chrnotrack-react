@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import {
   useListSeries, useUpdateSeries, useDeleteSeries, getListSeriesQueryKey,
   type Series, type SeriesEntry,
@@ -17,6 +17,16 @@ export default function CalendarView() {
 
   const dateKey = format(date, "yyyy-MM-dd");
   const { data: seriesList, isLoading } = useListSeries({ dateKey });
+  const { data: allSeries } = useListSeries();
+
+  const datesWithData = useMemo(() => {
+    if (!allSeries) return [];
+    const dateKeys = new Set(allSeries.map(s => s.dateKey));
+    return Array.from(dateKeys).map(dk => {
+      const [y, m, d] = dk.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    });
+  }, [allSeries]);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -27,6 +37,22 @@ export default function CalendarView() {
           onSelect={(d) => d && setDate(d)}
           locale={fr}
           className="rounded-md border-none"
+          modifiers={{ hasData: datesWithData }}
+          components={{
+            DayButton: ({ day, modifiers, className, children, ...props }) => (
+              <CalendarDayButton
+                day={day}
+                modifiers={modifiers}
+                className={modifiers.hasData ? `${className ?? ""} relative` : className}
+                {...props}
+              >
+                {children}
+                {modifiers.hasData && (
+                  <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                )}
+              </CalendarDayButton>
+            ),
+          }}
         />
       </div>
 
