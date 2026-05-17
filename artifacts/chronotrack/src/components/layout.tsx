@@ -12,7 +12,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <Clock className="w-5 h-5 text-primary" />
           <h1 className="font-bold text-lg tracking-tight uppercase">ChronoTrack</h1>
           <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-400 border-blue-500/20 uppercase tracking-widest text-[10px]">
-            v2.0.4
+            {import.meta.env.VITE_APP_VERSION || "v2.0.4"}
           </Badge>
         </div>
       </header>

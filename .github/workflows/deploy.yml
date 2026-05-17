@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -37,6 +37,8 @@ jobs:
 
       - name: Build frontend
         run: pnpm --filter @workspace/chronotrack exec vite build --config vite.github.config.ts
+        env:
+          VITE_APP_VERSION: "v2.0.${{ github.run_number }}"
 
       - name: Add .nojekyll
         run: touch artifacts/chronotrack/dist/public/.nojekyll

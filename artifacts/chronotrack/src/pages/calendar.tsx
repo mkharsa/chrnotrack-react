@@ -34,14 +34,8 @@ export default function CalendarView() {
           selected={date}
           onSelect={(d) => d && setDate(d)}
           locale={fr}
-          className="rounded-md border-none w-full [--cell-size:2.75rem]"
-          classNames={{
-            months: "w-full",
-            month: "w-full",
-            table: "w-full border-collapse",
-            week: "w-full flex",
-            day: "flex-1 flex items-center justify-center",
-          }}
+          className="rounded-md border-none [--cell-size:2.75rem]"
+          classNames={{ root: "w-full" }}
           modifiers={{ hasData: datesWithData }}
           components={{
             DayButton: ({ day, modifiers, className, children, ...props }) => (
