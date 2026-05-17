@@ -1,0 +1,48 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build web app
+        run: pnpm --filter @workspace/chronotrack exec vite build --config vite.github.config.ts
+
+      - name: Capacitor sync
+        run: cd artifacts/chronotrack && npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x artifacts/chronotrack/android/gradlew
+
+      - name: Build debug APK
+        run: cd artifacts/chronotrack/android && ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChronoTrack-debug
+          path: artifacts/chronotrack/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

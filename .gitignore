@@ -44,6 +44,13 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
+# Android build artifacts (keep android/ source)
+artifacts/chronotrack/android/.gradle
+artifacts/chronotrack/android/app/build
+artifacts/chronotrack/android/build
+artifacts/chronotrack/android/local.properties
+artifacts/chronotrack/android/app/src/main/assets/public
+
 # Replit
 .cache/
 .local/
