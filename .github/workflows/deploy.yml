@@ -37,8 +37,6 @@ jobs:
 
       - name: Build frontend
         run: pnpm --filter @workspace/chronotrack exec vite build --config vite.github.config.ts
-        env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
 
       - name: Add .nojekyll
         run: touch artifacts/chronotrack/dist/public/.nojekyll
