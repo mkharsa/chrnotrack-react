@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGetProgression, useGetProgressionSummary, useListDistances } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -59,9 +59,15 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 
 export default function Progression() {
   const [groupBy, setGroupBy] = useState<"session" | "month">("session");
-  const [distance, setDistance] = useState<string>("400");
+  const [distance, setDistance] = useState<string>("");
 
   const { data: distances } = useListDistances();
+
+  useEffect(() => {
+    if (distances && distances.length > 0 && !distances.includes(distance)) {
+      setDistance(distances[0]);
+    }
+  }, [distances]);
   const { data: summary } = useGetProgressionSummary();
   const { data: progression, isLoading: isProgLoading } = useGetProgression({ dist: distance, groupBy });
 
