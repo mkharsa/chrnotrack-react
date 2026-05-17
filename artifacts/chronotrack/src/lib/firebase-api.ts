@@ -204,8 +204,26 @@ export function useListSeries(params?: { dateKey?: string }) {
     queryFn: async (): Promise<Series[]> => {
       const snap = await getDocs(collection(db, "series"));
       return snap.docs
-        .filter(d => !params?.dateKey || d.data().dateKey === params.dateKey)
-        .map(d => ({ id: d.id, ...d.data() } as Series))
+        .filter(d => {
+          const data = d.data();
+          return (
+            data.dateKey &&
+            data.dist &&
+            (!params?.dateKey || data.dateKey === params.dateKey)
+          );
+        })
+        .map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            dateKey: data.dateKey as string,
+            sessionId: (data.sessionId as string | null) ?? null,
+            dist: data.dist as string,
+            entries: ((data.entries ?? []) as SeriesEntry[]).filter(
+              e => e && e.pid && typeof e.timeMs === "number"
+            ),
+          } satisfies Series;
+        })
         .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
     },
   });
@@ -283,6 +301,7 @@ export function useGetProgression(params: { dist: string; groupBy: "session" | "
           : (data.dateKey as string);
 
         for (const entry of ((data.entries ?? []) as SeriesEntry[])) {
+          if (!entry || !entry.pid || typeof entry.timeMs !== "number") continue;
           if (!entry.include) continue;
           if (!participantMap.has(entry.pid)) {
             participantMap.set(entry.pid, { name: entry.name, periodData: new Map() });
