@@ -34,6 +34,9 @@ export default function Athletes() {
           setNewName("");
           toast({ title: `Athlète "${created.name}" ajouté` });
         },
+        onError: (err) => {
+          toast({ title: "Erreur Firestore", description: String(err), variant: "destructive" });
+        },
       }
     );
   };
@@ -59,7 +62,7 @@ export default function Athletes() {
     toast({ title: `${ids.length} athlète${ids.length > 1 ? "s" : ""} supprimé${ids.length > 1 ? "s" : ""}` });
   };
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
@@ -77,7 +80,7 @@ export default function Athletes() {
     }
   };
 
-  const startEdit = (id: number, currentName: string) => {
+  const startEdit = (id: string, currentName: string) => {
     setEditingId(id);
     setEditValue(currentName);
   };

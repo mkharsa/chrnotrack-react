@@ -496,7 +496,10 @@ function CreateSessionDialog() {
         setSelectedParticipants(new Set());
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
         setLocation(`/sessions/${res.id}/chrono`);
-      }
+      },
+      onError: (err) => {
+        toast({ title: "Erreur Firestore", description: String(err), variant: "destructive" });
+      },
     });
   };
 
