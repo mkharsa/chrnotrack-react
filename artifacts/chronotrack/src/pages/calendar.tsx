@@ -26,16 +26,15 @@ export default function CalendarView() {
   }, [allSeries]);
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Calendrier pleine largeur */}
-      <div className="p-4 border-b border-border bg-card">
+    <div className="h-full overflow-auto bg-background">
+      {/* Calendrier */}
+      <div className="p-4 bg-card border-b border-border flex justify-center">
         <Calendar
           mode="single"
           selected={date}
           onSelect={(d) => d && setDate(d)}
           locale={fr}
-          className="rounded-md border-none [--cell-size:2.75rem]"
-          classNames={{ root: "w-full" }}
+          className="rounded-md border-none [--cell-size:2.5rem]"
           modifiers={{ hasData: datesWithData }}
           components={{
             DayButton: ({ day, modifiers, className, children, ...props }) => (
@@ -56,7 +55,7 @@ export default function CalendarView() {
       </div>
 
       {/* Résumé du jour */}
-      <div className="flex-1 overflow-auto p-4 space-y-3">
+      <div className="p-4 space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
           {format(date, "EEEE d MMMM yyyy", { locale: fr })}
         </h2>
