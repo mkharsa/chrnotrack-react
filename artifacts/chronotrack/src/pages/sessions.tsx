@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey } from "@/lib/firebase-api";
 import {
-  format, isToday, isThisWeek, isThisMonth, parseISO,
+  format, isToday, parseISO,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth,
 } from "date-fns";
@@ -26,38 +26,35 @@ type Session = {
 };
 
 type ViewMode = "list" | "calendar";
+type GroupBy = "day" | "month";
 
-// ── Groupement des sessions pour la vue liste ───────────────────────────────
+// ── Groupement ────────────────────────────────────────────────────────────────
 
-function groupSessions(sessions: Session[]) {
-  const today: Session[] = [];
-  const week: Session[] = [];
-  const month: Session[] = [];
-  const older: Session[] = [];
+function groupSessions(sessions: Session[], groupBy: GroupBy) {
+  const map = new Map<string, { label: string; sessions: Session[] }>();
 
   for (const s of sessions) {
     const d = parseISO(s.date);
-    if (isToday(d)) today.push(s);
-    else if (isThisWeek(d, { locale: fr })) week.push(s);
-    else if (isThisMonth(d)) month.push(s);
-    else older.push(s);
+    const key = groupBy === "day"
+      ? format(d, "yyyy-MM-dd")
+      : format(d, "yyyy-MM");
+    const label = groupBy === "day"
+      ? (isToday(d) ? "Aujourd'hui" : format(d, "EEEE d MMMM yyyy", { locale: fr }))
+      : format(d, "MMMM yyyy", { locale: fr });
+
+    if (!map.has(key)) map.set(key, { label, sessions: [] });
+    map.get(key)!.sessions.push(s);
   }
 
-  return [
-    { label: "Aujourd'hui", sessions: today },
-    { label: "Cette semaine", sessions: week },
-    { label: "Ce mois", sessions: month },
-    { label: "Antérieur", sessions: older },
-  ].filter(g => g.sessions.length > 0);
+  return Array.from(map.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([, g]) => g);
 }
 
-// ── Carte session ─────────────────────────────────────────────────────────
+// ── Carte session ─────────────────────────────────────────────────────────────
 
 function SessionCard({
-  session,
-  selected,
-  onToggle,
-  onClick,
+  session, selected, onToggle, onClick,
 }: {
   session: Session;
   selected: boolean;
@@ -85,7 +82,7 @@ function SessionCard({
         <div className="flex items-baseline justify-between mb-1">
           <h3 className="font-bold text-base truncate">{session.name}</h3>
           <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">
-            {format(parseISO(session.date), "d MMM yyyy", { locale: fr })}
+            {format(parseISO(session.date), "d MMM", { locale: fr })}
           </span>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -104,42 +101,64 @@ function SessionCard({
   );
 }
 
-// ── Vue liste ─────────────────────────────────────────────────────────────
+// ── Vue liste ──────────────────────────────────────────────────────────────────
 
 function ListView({
-  sessions,
-  selectedIds,
-  onToggle,
-  onToggleAll,
-  onNavigate,
+  sessions, selectedIds, onToggle, onToggleAll, onNavigate,
 }: {
   sessions: Session[];
-  selectedIds: Set<number>;
+  selectedIds: Set<string>;
   onToggle: (id: string) => void;
   onToggleAll: () => void;
   onNavigate: (id: string) => void;
 }) {
-  const groups = groupSessions(sessions);
+  const [groupBy, setGroupBy] = useState<GroupBy>("day");
+  const groups = groupSessions(sessions, groupBy);
   const allSelected = sessions.length > 0 && selectedIds.size === sessions.length;
 
   return (
     <div className="space-y-5 pb-6">
-      <div
-        className="flex items-center gap-3 px-1 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
-        onClick={onToggleAll}
-      >
-        <Checkbox
-          checked={allSelected}
-          onCheckedChange={onToggleAll}
-          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-        />
-        <span>Tout sélectionner</span>
+      {/* Sélecteur de groupement */}
+      <div className="flex items-center justify-between">
+        <div
+          className="flex items-center gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
+          onClick={onToggleAll}
+        >
+          <Checkbox
+            checked={allSelected}
+            onCheckedChange={onToggleAll}
+            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+          />
+          <span>Tout sélectionner</span>
+        </div>
+
+        <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs">
+          <button
+            onClick={() => setGroupBy("day")}
+            className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+              groupBy === "day" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Par jour
+          </button>
+          <button
+            onClick={() => setGroupBy("month")}
+            className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+              groupBy === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Par mois
+          </button>
+        </div>
       </div>
 
+      {/* Sections */}
       {groups.map(group => (
         <div key={group.label}>
           <div className="flex items-center gap-2 mb-2 px-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.label}</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider capitalize">
+              {group.label}
+            </span>
             <div className="flex-1 h-px bg-border" />
             <span className="text-xs text-muted-foreground">{group.sessions.length}</span>
           </div>
@@ -160,14 +179,13 @@ function ListView({
   );
 }
 
-// ── Vue calendrier ────────────────────────────────────────────────────────
+// ── Vue calendrier ─────────────────────────────────────────────────────────────
 
 function SessionsCalendarView({
-  sessions,
-  onNavigate,
+  sessions, onNavigate,
 }: {
   sessions: Session[];
-  onNavigate: (id: number) => void;
+  onNavigate: (id: string) => void;
 }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -193,13 +211,10 @@ function SessionsCalendarView({
 
   return (
     <div className="space-y-4 pb-6">
-      {/* Navigation mois */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
+            variant="ghost" size="sm" className="h-8 w-8 p-0"
             onClick={() => { setCurrentMonth(m => subMonths(m, 1)); setSelectedDay(null); }}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -208,16 +223,13 @@ function SessionsCalendarView({
             {format(currentMonth, "MMMM yyyy", { locale: fr })}
           </h3>
           <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
+            variant="ghost" size="sm" className="h-8 w-8 p-0"
             onClick={() => { setCurrentMonth(m => addMonths(m, 1)); setSelectedDay(null); }}
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
 
-        {/* Jours de semaine */}
         <div className="grid grid-cols-7 border-b border-border">
           {dayNames.map(d => (
             <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-2 uppercase tracking-wider">
@@ -226,7 +238,6 @@ function SessionsCalendarView({
           ))}
         </div>
 
-        {/* Grille des jours */}
         <div className="grid grid-cols-7">
           {days.map((day, i) => {
             const key = format(day, "yyyy-MM-dd");
@@ -242,23 +253,14 @@ function SessionsCalendarView({
                 className={`relative flex flex-col items-center justify-center py-2.5 text-sm transition-colors min-h-[52px] ${
                   !inMonth ? "opacity-30" : ""
                 } ${
-                  isSelected
-                    ? "bg-primary/10"
-                    : hasSession
-                    ? "hover:bg-primary/5 cursor-pointer"
-                    : "cursor-default"
+                  isSelected ? "bg-primary/10" : hasSession ? "hover:bg-primary/5 cursor-pointer" : "cursor-default"
                 }`}
-                onClick={() => {
-                  if (!inMonth) return;
-                  setSelectedDay(isSelected ? null : day);
-                }}
+                onClick={() => { if (!inMonth) return; setSelectedDay(isSelected ? null : day); }}
                 disabled={!inMonth}
               >
                 <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                  isCurrentDay
-                    ? "bg-primary text-primary-foreground font-bold"
-                    : isSelected
-                    ? "bg-primary/20 text-primary font-semibold"
+                  isCurrentDay ? "bg-primary text-primary-foreground font-bold"
+                    : isSelected ? "bg-primary/20 text-primary font-semibold"
                     : "text-foreground"
                 }`}>
                   {format(day, "d")}
@@ -266,10 +268,7 @@ function SessionsCalendarView({
                 {hasSession && (
                   <div className="flex gap-0.5 mt-1">
                     {daySessions.slice(0, 3).map((_, si) => (
-                      <span
-                        key={si}
-                        className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-primary" : "bg-primary/60"}`}
-                      />
+                      <span key={si} className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-primary" : "bg-primary/60"}`} />
                     ))}
                   </div>
                 )}
@@ -279,7 +278,6 @@ function SessionsCalendarView({
         </div>
       </div>
 
-      {/* Sessions du jour sélectionné */}
       {selectedDay && (
         <div>
           <div className="flex items-center gap-2 mb-2 px-1">
@@ -294,42 +292,26 @@ function SessionsCalendarView({
           ) : (
             <div className="space-y-2">
               {selectedDaySessions.map(s => (
-                <SessionCard
-                  key={s.id}
-                  session={s}
-                  selected={false}
-                  onToggle={() => {}}
-                  onClick={() => onNavigate(s.id)}
-                />
+                <SessionCard key={s.id} session={s} selected={false} onToggle={() => {}} onClick={() => onNavigate(s.id)} />
               ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Résumé du mois */}
       {!selectedDay && (
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3">
-            Ce mois — {format(currentMonth, "MMMM", { locale: fr })}
+            {format(currentMonth, "MMMM yyyy", { locale: fr })}
           </p>
           {(() => {
-            const monthSessions = sessions.filter(s => {
-              const d = parseISO(s.date);
-              return isSameMonth(d, currentMonth);
-            });
+            const monthSessions = sessions.filter(s => isSameMonth(parseISO(s.date), currentMonth));
             if (monthSessions.length === 0)
               return <p className="text-sm text-muted-foreground">Aucune session ce mois.</p>;
             return (
               <div className="space-y-2">
                 {monthSessions.map(s => (
-                  <SessionCard
-                    key={s.id}
-                    session={s}
-                    selected={false}
-                    onToggle={() => {}}
-                    onClick={() => onNavigate(s.id)}
-                  />
+                  <SessionCard key={s.id} session={s} selected={false} onToggle={() => {}} onClick={() => onNavigate(s.id)} />
                 ))}
               </div>
             );
@@ -340,7 +322,7 @@ function SessionsCalendarView({
   );
 }
 
-// ── Page principale Sessions ──────────────────────────────────────────────
+// ── Page principale ────────────────────────────────────────────────────────────
 
 export default function Sessions() {
   const { data: sessions, isLoading } = useListSessions();
@@ -351,7 +333,7 @@ export default function Sessions() {
   const bulkDelete = useBulkDeleteSessions();
   const { toast } = useToast();
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -370,11 +352,12 @@ export default function Sessions() {
 
   const handleDelete = () => {
     if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
     bulkDelete.mutate({ data: { ids: Array.from(selectedIds) } }, {
       onSuccess: () => {
         setSelectedIds(new Set());
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
-        toast({ title: `${selectedIds.size} session${selectedIds.size > 1 ? "s" : ""} supprimée${selectedIds.size > 1 ? "s" : ""}` });
+        toast({ title: `${count} session${count > 1 ? "s" : ""} supprimée${count > 1 ? "s" : ""}` });
       }
     });
   };
@@ -383,20 +366,16 @@ export default function Sessions() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* En-tête */}
       <div className="px-4 pt-4 pb-3 border-b border-border bg-card shrink-0">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-xl font-bold tracking-tight uppercase">Sessions</h2>
           <CreateSessionDialog />
         </div>
 
-        {/* Toggle vue */}
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
           <button
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              viewMode === "list"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+              viewMode === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => setViewMode("list")}
           >
@@ -405,9 +384,7 @@ export default function Sessions() {
           </button>
           <button
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              viewMode === "calendar"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+              viewMode === "calendar" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => setViewMode("calendar")}
           >
@@ -417,7 +394,6 @@ export default function Sessions() {
         </div>
       </div>
 
-      {/* Contenu */}
       <div className="flex-1 overflow-y-auto p-4">
         {isLoading ? (
           <div className="animate-pulse space-y-3">
@@ -440,22 +416,17 @@ export default function Sessions() {
             onNavigate={navigateTo}
           />
         ) : (
-          <SessionsCalendarView
-            sessions={sessions ?? []}
-            onNavigate={navigateTo}
-          />
+          <SessionsCalendarView sessions={sessions ?? []} onNavigate={navigateTo} />
         )}
       </div>
 
-      {/* Barre de suppression */}
       {selectedIds.size > 0 && viewMode === "list" && (
         <div className="shrink-0 bg-destructive/95 text-destructive-foreground px-4 py-3 flex justify-between items-center shadow-lg">
           <span className="text-sm font-medium">
             {selectedIds.size} sélectionnée{selectedIds.size > 1 ? "s" : ""}
           </span>
           <Button
-            variant="ghost"
-            size="sm"
+            variant="ghost" size="sm"
             className="hover:bg-white/20 text-white font-semibold"
             onClick={handleDelete}
             disabled={bulkDelete.isPending}
@@ -469,14 +440,14 @@ export default function Sessions() {
   );
 }
 
-// ── Dialogue de création ──────────────────────────────────────────────────
+// ── Dialogue de création ───────────────────────────────────────────────────────
 
 function CreateSessionDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const { data: participants } = useListParticipants();
-  const [selectedParticipants, setSelectedParticipants] = useState<Set<number>>(new Set());
+  const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set());
   const [newAthleteeName, setNewAthleteName] = useState("");
   const createSession = useCreateSession();
   const createParticipant = useCreateParticipant();
@@ -516,7 +487,7 @@ function CreateSessionDialog() {
     });
   };
 
-  const toggleP = (id: number) => {
+  const toggleP = (id: string) => {
     setSelectedParticipants(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -568,9 +539,7 @@ function CreateSessionDialog() {
                 className="flex-1 text-sm"
               />
               <Button
-                type="button"
-                size="sm"
-                variant="outline"
+                type="button" size="sm" variant="outline"
                 onClick={handleAddAthlete}
                 disabled={!newAthleteeName.trim() || createParticipant.isPending}
               >
