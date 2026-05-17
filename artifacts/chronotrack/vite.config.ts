@@ -6,6 +6,14 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
 
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  base: '/chrnotrack-react/',
+})
+
 if (!rawPort) {
   throw new Error(
     "PORT environment variable is required but was not provided.",
