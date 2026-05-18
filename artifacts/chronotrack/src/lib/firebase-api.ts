@@ -1,9 +1,23 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   collection, getDocs, getDoc, addDoc, deleteDoc, updateDoc,
-  doc, serverTimestamp, writeBatch,
+  doc, serverTimestamp, writeBatch, CollectionReference, DocumentReference,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
+
+function uid(): string {
+  const u = auth.currentUser;
+  if (!u) throw new Error("Not authenticated");
+  return u.uid;
+}
+
+function userCol(name: string): CollectionReference {
+  return collection(db, "users", uid(), name);
+}
+
+function userDocRef(collName: string, docId: string): DocumentReference {
+  return doc(db, "users", uid(), collName, docId);
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -55,7 +69,7 @@ export function useListParticipants() {
   return useQuery({
     queryKey: getListParticipantsQueryKey(),
     queryFn: async (): Promise<Participant[]> => {
-      const snap = await getDocs(collection(db, "participants"));
+      const snap = await getDocs(userCol("participants"));
       return snap.docs
         .map(d => ({ id: d.id, name: d.data().name as string }))
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -66,7 +80,7 @@ export function useListParticipants() {
 export function useCreateParticipant() {
   return useMutation({
     mutationFn: async ({ data }: { data: { name: string } }): Promise<Participant> => {
-      const ref = await addDoc(collection(db, "participants"), {
+      const ref = await addDoc(userCol("participants"), {
         name: data.name,
         createdAt: serverTimestamp(),
       });
@@ -78,7 +92,7 @@ export function useCreateParticipant() {
 export function useDeleteParticipant() {
   return useMutation({
     mutationFn: async ({ id }: { id: string }): Promise<void> => {
-      await deleteDoc(doc(db, "participants", id));
+      await deleteDoc(userDocRef("participants", id));
     },
   });
 }
@@ -86,7 +100,7 @@ export function useDeleteParticipant() {
 export function useUpdateParticipant() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: { name: string } }): Promise<void> => {
-      await updateDoc(doc(db, "participants", id), { name: data.name });
+      await updateDoc(userDocRef("participants", id), { name: data.name });
     },
   });
 }
@@ -97,7 +111,7 @@ export function useListSessions() {
   return useQuery({
     queryKey: getListSessionsQueryKey(),
     queryFn: async (): Promise<Session[]> => {
-      const snap = await getDocs(collection(db, "sessions"));
+      const snap = await getDocs(userCol("sessions"));
       return snap.docs
         .map(d => {
           const data = d.data();
@@ -121,7 +135,7 @@ export function useCreateSession() {
     }): Promise<{ id: string }> => {
       const participants: SessionParticipant[] = [];
       for (const pid of (data.participantIds ?? [])) {
-        const snap = await getDoc(doc(db, "participants", pid));
+        const snap = await getDoc(userDocRef("participants", pid));
         if (snap.exists()) {
           participants.push({
             id: crypto.randomUUID(),
@@ -131,7 +145,7 @@ export function useCreateSession() {
           });
         }
       }
-      const ref = await addDoc(collection(db, "sessions"), {
+      const ref = await addDoc(userCol("sessions"), {
         name: data.name,
         date: data.date,
         defaultDist: data.defaultDist ?? null,
@@ -148,7 +162,7 @@ export function useGetSession(id: string) {
     queryKey: getGetSessionQueryKey(id),
     queryFn: async (): Promise<SessionDetail | null> => {
       if (!id) return null;
-      const snap = await getDoc(doc(db, "sessions", id));
+      const snap = await getDoc(userDocRef("sessions", id));
       if (!snap.exists()) return null;
       const data = snap.data();
       const participants = (data.participants ?? []) as SessionParticipant[];
@@ -170,10 +184,10 @@ export function useBulkDeleteSessions() {
     mutationFn: async ({ data }: { data: { ids: string[] } }): Promise<void> => {
       const batch = writeBatch(db);
       for (const id of data.ids) {
-        batch.delete(doc(db, "sessions", id));
+        batch.delete(userDocRef("sessions", id));
       }
       // Delete associated series
-      const seriesSnap = await getDocs(collection(db, "series"));
+      const seriesSnap = await getDocs(userCol("series"));
       seriesSnap.docs
         .filter(d => data.ids.includes(d.data().sessionId as string))
         .forEach(d => batch.delete(d.ref));
@@ -188,7 +202,7 @@ export function useAddSessionParticipant() {
       id: string;
       data: { participantId: string; name: string };
     }): Promise<SessionParticipant> => {
-      const sessionRef = doc(db, "sessions", id);
+      const sessionRef = userDocRef("sessions", id);
       const sessionSnap = await getDoc(sessionRef);
       if (!sessionSnap.exists()) throw new Error("Session not found");
       const existing = (sessionSnap.data().participants ?? []) as SessionParticipant[];
@@ -210,7 +224,7 @@ export function useListSeries(params?: { dateKey?: string }) {
   return useQuery({
     queryKey: getListSeriesQueryKey(params),
     queryFn: async (): Promise<Series[]> => {
-      const snap = await getDocs(collection(db, "series"));
+      const snap = await getDocs(userCol("series"));
       return snap.docs
         .filter(d => {
           const data = d.data();
@@ -242,7 +256,7 @@ export function useCreateSeries() {
     mutationFn: async ({ data }: {
       data: { dateKey: string; sessionId?: string | null; dist: string; entries: SeriesEntry[] };
     }): Promise<{ id: string }> => {
-      const ref = await addDoc(collection(db, "series"), {
+      const ref = await addDoc(userCol("series"), {
         ...data,
         createdAt: serverTimestamp(),
       });
@@ -257,7 +271,7 @@ export function useUpdateSeries() {
       id: string;
       data: Partial<Pick<Series, "dist" | "entries">>;
     }): Promise<void> => {
-      await updateDoc(doc(db, "series", id), data);
+      await updateDoc(userDocRef("series", id), data);
     },
   });
 }
@@ -265,7 +279,7 @@ export function useUpdateSeries() {
 export function useDeleteSeries() {
   return useMutation({
     mutationFn: async ({ id }: { id: string }): Promise<void> => {
-      await deleteDoc(doc(db, "series", id));
+      await deleteDoc(userDocRef("series", id));
     },
   });
 }
@@ -295,7 +309,7 @@ export function useGetProgression(params: { dist: string; groupBy: "session" | "
   return useQuery({
     queryKey: ["progression", params.dist, params.groupBy],
     queryFn: async (): Promise<ProgressionData[]> => {
-      const snap = await getDocs(collection(db, "series"));
+      const snap = await getDocs(userCol("series"));
       const filtered = snap.docs
         .filter(d => d.data().dist === params.dist)
         .sort((a, b) => (a.data().dateKey as string).localeCompare(b.data().dateKey as string));
@@ -346,7 +360,7 @@ export function useGetProgressionSummary() {
   return useQuery({
     queryKey: ["progression", "summary"],
     queryFn: async (): Promise<ProgressionSummary[]> => {
-      const snap = await getDocs(collection(db, "series"));
+      const snap = await getDocs(userCol("series"));
       const participantMap = new Map<string, { name: string; times: number[] }>();
 
       for (const d of snap.docs) {
@@ -374,7 +388,7 @@ export function useListDistances() {
   return useQuery({
     queryKey: ["distances"],
     queryFn: async (): Promise<string[]> => {
-      const snap = await getDocs(collection(db, "series"));
+      const snap = await getDocs(userCol("series"));
       const dists = new Set<string>();
       snap.docs.forEach(d => {
         const dist = d.data().dist as string | undefined;

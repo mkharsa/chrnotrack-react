@@ -1,9 +1,15 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Calendar as CalendarIcon, Clock, TrendingUp, Users } from "lucide-react";
+import { Activity, Calendar as CalendarIcon, Clock, LogOut, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/lib/auth";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { user, signOut } = useAuth();
+
+  const initials = user?.displayName
+    ? user.displayName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
+    : user?.email?.[0].toUpperCase() ?? "?";
 
   return (
     <div className="flex flex-col h-[100dvh] bg-background text-foreground overflow-hidden">
@@ -14,6 +20,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-400 border-blue-500/20 uppercase tracking-widest text-[10px]">
             {import.meta.env.VITE_APP_VERSION || "v2.0.4"}
           </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+            {user?.photoURL
+              ? <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
+              : initials}
+          </div>
+          <button
+            onClick={() => signOut()}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            title="Se déconnecter"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
