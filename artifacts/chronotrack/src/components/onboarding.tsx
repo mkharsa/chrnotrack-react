@@ -63,7 +63,7 @@ export default function Onboarding() {
             </DialogHeader>
             <div className="py-4 space-y-3 text-sm text-muted-foreground">
               <p>
-                ChronoTrack vous permet de chronomtrer vos athlètes, suivre leur progression
+                ChronoTrack vous permet de chronométrer vos athlètes, suivre leur progression
                 et organiser vos entraînements — tout en un.
               </p>
               <p>Laissez-nous vous guider pour démarrer en quelques secondes.</p>
@@ -117,7 +117,7 @@ export default function Onboarding() {
             </DialogHeader>
             <div className="py-4">
               <p className="text-sm text-muted-foreground">
-                Créez votre premier entraînement et commencez à chronomtrer.
+                Créez votre premier entraînement et commencez à chronométrer.
               </p>
             </div>
             <Button className="w-full font-bold" onClick={handleGoToTraining}>
