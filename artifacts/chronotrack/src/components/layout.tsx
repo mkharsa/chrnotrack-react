@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Calendar as CalendarIcon, Clock, LogOut, TrendingUp, Users } from "lucide-react";
+import { Activity, Calendar as CalendarIcon, Clock, Dumbbell, LogOut, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 
@@ -47,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem href="/athletes" icon={<Users />} label="Athlètes" active={location.startsWith("/athletes")} />
           <NavItem href="/calendar" icon={<CalendarIcon />} label="Calendrier" active={location.startsWith("/calendar")} />
           <NavItem href="/progression" icon={<TrendingUp />} label="Progression" active={location.startsWith("/progression")} />
+          <NavItem href="/training" icon={<Dumbbell />} label="Programme" active={location.startsWith("/training")} />
         </div>
       </nav>
     </div>
