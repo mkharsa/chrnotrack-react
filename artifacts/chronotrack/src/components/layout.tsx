@@ -43,11 +43,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <nav className="shrink-0 border-t border-border bg-card pb-safe">
         <div className="flex h-16">
+          <NavItem href="/training" icon={<Dumbbell />} label="Entraînement" active={location.startsWith("/training")} />
           <NavItem href="/sessions" icon={<Activity />} label="Sessions" active={location === "/" || location.startsWith("/sessions")} />
           <NavItem href="/athletes" icon={<Users />} label="Athlètes" active={location.startsWith("/athletes")} />
           <NavItem href="/calendar" icon={<CalendarIcon />} label="Calendrier" active={location.startsWith("/calendar")} />
           <NavItem href="/progression" icon={<TrendingUp />} label="Progression" active={location.startsWith("/progression")} />
-          <NavItem href="/training" icon={<Dumbbell />} label="Entraînement" active={location.startsWith("/training")} />
         </div>
       </nav>
     </div>
