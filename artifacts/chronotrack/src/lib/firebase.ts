@@ -1,8 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import {
-  initializeFirestore, getFirestore,
-  persistentLocalCache, persistentMultipleTabManager,
-} from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
@@ -18,17 +15,7 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-// Try offline persistence; fall back to in-memory if not supported (e.g. iOS private mode)
-let db;
-try {
-  db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-  });
-} catch {
-  db = getFirestore(app);
-}
-export { db };
-
+export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 isSupported().then(yes => { if (yes) getAnalytics(app); });
