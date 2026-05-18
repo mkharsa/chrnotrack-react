@@ -48,7 +48,6 @@ jobs:
           retention-days: 30
 
       - name: Deploy to Firebase App Distribution
-        if: ${{ secrets.FIREBASE_TOKEN != '' && secrets.FIREBASE_ANDROID_APP_ID != '' }}
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
