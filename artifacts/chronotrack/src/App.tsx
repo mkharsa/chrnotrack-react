@@ -93,26 +93,28 @@ function LoadingScreen() {
 function Router() {
   const { user, loading } = useAuth();
 
-  if (loading) return <LoadingScreen />;
-  if (!user) return <Login />;
   return (
     <Switch>
-      {/* Admin: password-gated but still behind Firebase auth */}
+      {/* Admin: fully standalone, password-only, no Firebase auth required */}
       <Route path="/admin" component={Admin} />
       <Route>
-        <Layout>
-          <Switch>
-            <Route path="/" component={() => <Redirect to="/training" />} />
-            <Route path="/sessions" component={Sessions} />
-            <Route path="/sessions/:id/chrono" component={Chrono} />
-            <Route path="/athletes" component={Athletes} />
-            <Route path="/calendar" component={CalendarView} />
-            <Route path="/progression" component={Progression} />
-            <Route path="/training" component={Training} />
-            <Route path="/free-chrono" component={FreeChrono} />
-            <Route component={NotFound} />
-          </Switch>
-        </Layout>
+        <>
+          {loading ? <LoadingScreen /> : !user ? <Login /> : (
+            <Layout>
+              <Switch>
+                <Route path="/" component={() => <Redirect to="/training" />} />
+                <Route path="/sessions" component={Sessions} />
+                <Route path="/sessions/:id/chrono" component={Chrono} />
+                <Route path="/athletes" component={Athletes} />
+                <Route path="/calendar" component={CalendarView} />
+                <Route path="/progression" component={Progression} />
+                <Route path="/training" component={Training} />
+                <Route path="/free-chrono" component={FreeChrono} />
+                <Route component={NotFound} />
+              </Switch>
+            </Layout>
+          )}
+        </>
       </Route>
     </Switch>
   );
