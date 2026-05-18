@@ -1,18 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
-  signInWithPopup, signInWithRedirect, getRedirectResult,
-  GoogleAuthProvider,
+  signInWithPopup, GoogleAuthProvider, signInWithCredential,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
+import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 import { auth } from "@/lib/firebase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Clock, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 // Detect Capacitor native environment (Android / iOS)
 const isNative = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
   .Capacitor?.isNativePlatform?.();
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Clock, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -53,11 +53,6 @@ export default function Login() {
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
-  // On native, catch the redirect result after Google sign-in
-  useEffect(() => {
-    if (!isNative) return;
-    getRedirectResult(auth).catch(() => {/* ignore */});
-  }, []);
 
   const isLocked = lockedUntil !== null && Date.now() < lockedUntil;
   const lockRemaining = lockedUntil ? Math.ceil((lockedUntil - Date.now()) / 60000) : 0;
@@ -75,13 +70,17 @@ export default function Login() {
 
   const handleGoogle = async () => {
     setError(null);
-    const provider = new GoogleAuthProvider();
     try {
       if (isNative) {
-        // signInWithRedirect works better in Capacitor WebView
-        await signInWithRedirect(auth, provider);
+        // Use native Google Sign-In SDK via Capacitor plugin
+        const googleUser = await GoogleAuth.signIn();
+        const credential = GoogleAuthProvider.credential(
+          googleUser.authentication.idToken,
+          googleUser.authentication.accessToken,
+        );
+        await signInWithCredential(auth, credential);
       } else {
-        await signInWithPopup(auth, provider);
+        await signInWithPopup(auth, new GoogleAuthProvider());
       }
     } catch (e) { handleError(e); }
   };
@@ -185,25 +184,21 @@ export default function Login() {
           </p>
         </div>
 
-        {!isNative && (
-          <>
-            <div className="space-y-3">
-              <button
-                onClick={handleGoogle}
-                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:bg-muted/50 transition-colors"
-              >
-                <GoogleIcon />
-                Continuer avec Google
-              </button>
-            </div>
+        <div className="space-y-3">
+          <button
+            onClick={handleGoogle}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:bg-muted/50 transition-colors"
+          >
+            <GoogleIcon />
+            Continuer avec Google
+          </button>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground uppercase tracking-wider">ou</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-          </>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">ou</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
 
         <div className="space-y-3">
           <div className="relative">
