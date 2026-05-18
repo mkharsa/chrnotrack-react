@@ -27,6 +27,9 @@ const AUTH_ERRORS: Record<string, string> = {
   "auth/email-already-in-use": "Cet email est déjà utilisé.",
   "auth/weak-password": "Mot de passe trop faible (6 caractères min).",
   "auth/invalid-email": "Adresse email invalide.",
+  "auth/internal-error": "Erreur de connexion. Vérifiez votre réseau et réessayez.",
+  "auth/network-request-failed": "Pas de connexion internet.",
+  "auth/too-many-requests": "Trop de tentatives. Réessayez dans quelques minutes.",
   "auth/popup-closed-by-user": "",
   "auth/cancelled-popup-request": "",
 };
