@@ -1,4 +1,4 @@
-package com.chrnotrack.app;
+package chrono.track;
 
 import com.getcapacitor.BridgeActivity;
 

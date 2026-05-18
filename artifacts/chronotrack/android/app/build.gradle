@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.chrnotrack.app"
+    namespace "chrono.track"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.chrnotrack.app"
+        applicationId "chrono.track"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

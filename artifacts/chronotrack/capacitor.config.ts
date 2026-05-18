@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.chrnotrack.app",
+  appId: "chrono.track",
   appName: "ChronoTrack",
   webDir: "dist/public",
   server: {
