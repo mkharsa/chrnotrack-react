@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  signInWithPopup, GoogleAuthProvider, OAuthProvider,
+  signInWithPopup, GoogleAuthProvider,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -19,16 +19,6 @@ function GoogleIcon() {
   );
 }
 
-function MicrosoftIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden>
-      <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-      <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-      <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-      <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-    </svg>
-  );
-}
 
 const AUTH_ERRORS: Record<string, string> = {
   "auth/wrong-password": "Mot de passe incorrect.",
@@ -58,12 +48,6 @@ export default function Login() {
   const handleGoogle = async () => {
     setError(null);
     try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-    catch (e) { handleError(e); }
-  };
-
-  const handleMicrosoft = async () => {
-    setError(null);
-    try { await signInWithPopup(auth, new OAuthProvider("microsoft.com")); }
     catch (e) { handleError(e); }
   };
 
@@ -103,13 +87,6 @@ export default function Login() {
           >
             <GoogleIcon />
             Continuer avec Google
-          </button>
-          <button
-            onClick={handleMicrosoft}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:bg-muted/50 transition-colors"
-          >
-            <MicrosoftIcon />
-            Continuer avec Microsoft
           </button>
         </div>
 
