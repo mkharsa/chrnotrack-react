@@ -84,18 +84,20 @@ export default function Progression() {
     ? progression
     : progression?.filter(p => p.participantId === selectedAthlete);
 
-  // Get all individual times for the selected athlete + distance
-  const athleteRawTimes = (() => {
-    if (selectedAthlete === "all" || !allSeries || !distance) return [];
-    const athlete = progression?.find(p => p.participantId === selectedAthlete);
-    if (!athlete) return [];
-    return allSeries
-      .filter(s => s.dist === distance)
-      .flatMap(s => s.entries
-        .filter(e => e.pid === selectedAthlete)
-        .map(e => ({ date: s.dateKey, timeMs: e.timeMs, include: e.include }))
-      )
-      .sort((a, b) => a.date.localeCompare(b.date));
+  // Get all individual times for the selected athlete, grouped by distance (all distances)
+  const athleteAllDistances = (() => {
+    if (selectedAthlete === "all" || !allSeries) return [];
+    const byDist = new Map<string, { date: string; timeMs: number; include: boolean }[]>();
+    for (const s of allSeries) {
+      for (const e of s.entries) {
+        if (e.pid !== selectedAthlete) continue;
+        if (!byDist.has(s.dist)) byDist.set(s.dist, []);
+        byDist.get(s.dist)!.push({ date: s.dateKey, timeMs: e.timeMs, include: e.include });
+      }
+    }
+    return Array.from(byDist.entries())
+      .map(([dist, times]) => ({ dist, times: times.sort((a, b) => a.date.localeCompare(b.date)) }))
+      .sort((a, b) => Number(a.dist) - Number(b.dist));
   })();
 
   const handleExportPDF = () => {
@@ -325,50 +327,54 @@ export default function Progression() {
               </div>
             )}
 
-            {/* ── Tous les temps individuels (quand un athlète est sélectionné) ── */}
-            {selectedAthlete !== "all" && athleteRawTimes.length > 0 && (
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-                  <p className="text-sm font-semibold">Tous les temps — {distance}m</p>
-                  <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">
-                    {athleteRawTimes.length} temps
-                  </span>
-                </div>
-                <div className="divide-y divide-border">
-                  {athleteRawTimes.map((t, i) => {
-                    const isBest = t.timeMs === Math.min(...athleteRawTimes.map(x => x.timeMs));
-                    return (
-                      <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="text-muted-foreground text-xs w-5 text-right">{i + 1}</span>
-                          <span className="text-muted-foreground text-xs">{t.date}</span>
-                          {!t.include && (
-                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">exclu</span>
-                          )}
+            {/* ── Toutes les distances de l'athlète sélectionné ── */}
+            {selectedAthlete !== "all" && athleteAllDistances.map(({ dist, times }) => {
+              const best = Math.min(...times.map(t => t.timeMs));
+              const worst = Math.max(...times.map(t => t.timeMs));
+              const avg = Math.round(times.reduce((s, t) => s + t.timeMs, 0) / times.length);
+              return (
+                <div key={dist} className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                    <p className="text-sm font-semibold">{dist} m</p>
+                    <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">
+                      {times.length} temps
+                    </span>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {times.map((t, i) => {
+                      const isBest = t.timeMs === best;
+                      return (
+                        <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                          <div className="flex items-center gap-3">
+                            <span className="text-muted-foreground text-xs w-5 text-right">{i + 1}</span>
+                            <span className="text-muted-foreground text-xs">{t.date}</span>
+                            {!t.include && (
+                              <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">exclu</span>
+                            )}
+                          </div>
+                          <span className={`font-mono font-bold text-sm ${isBest ? "text-green-600" : ""}`}>
+                            {isBest && <span className="text-[10px] mr-1">🏆</span>}
+                            {formatTime(t.timeMs)}
+                          </span>
                         </div>
-                        <span className={`font-mono font-bold text-sm ${isBest ? "text-green-600" : ""}`}>
-                          {isBest && <span className="text-[10px] mr-1">🏆</span>}
-                          {formatTime(t.timeMs)}
-                        </span>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-border px-4 py-3 grid grid-cols-3 gap-2 bg-muted/30">
+                    {[
+                      { label: "Meilleur", value: formatTime(best), color: "text-green-600" },
+                      { label: "Moyen", value: formatTime(avg), color: "" },
+                      { label: "Pire", value: formatTime(worst), color: "text-red-500" },
+                    ].map(stat => (
+                      <div key={stat.label} className="text-center">
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.label}</div>
+                        <div className={`font-mono font-bold text-sm ${stat.color}`}>{stat.value}</div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-                {/* Stats résumé */}
-                <div className="border-t border-border px-4 py-3 grid grid-cols-3 gap-2 bg-muted/30">
-                  {[
-                    { label: "Meilleur", value: formatTime(Math.min(...athleteRawTimes.map(t => t.timeMs))), color: "text-green-600" },
-                    { label: "Moyen", value: formatTime(Math.round(athleteRawTimes.reduce((s, t) => s + t.timeMs, 0) / athleteRawTimes.length)), color: "" },
-                    { label: "Pire", value: formatTime(Math.max(...athleteRawTimes.map(t => t.timeMs))), color: "text-red-500" },
-                  ].map(stat => (
-                    <div key={stat.label} className="text-center">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.label}</div>
-                      <div className={`font-mono font-bold text-sm ${stat.color}`}>{stat.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              );
+            })}
 
             {/* ── Carte + graphique individuel par athlète ── */}
             {filteredProgression?.map((p, athleteIdx) => {
