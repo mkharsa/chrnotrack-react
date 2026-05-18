@@ -104,18 +104,19 @@ function SessionCard({
 // ── Vue liste ──────────────────────────────────────────────────────────────────
 
 function ListView({
-  sessions, selectedIds, onToggle, onToggleAll, onNavigate,
+  sessions, selectedIds, onToggle, onToggleAll, onNavigate, selectionMode, onToggleSelectionMode,
 }: {
   sessions: Session[];
   selectedIds: Set<string>;
   onToggle: (id: string) => void;
   onToggleAll: () => void;
   onNavigate: (id: string) => void;
+  selectionMode: boolean;
+  onToggleSelectionMode: () => void;
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
   const groups = groupSessions(sessions, groupBy);
   const allSelected = sessions.length > 0 && selectedIds.size === sessions.length;
-  // La section la plus récente est ouverte par défaut
   const [openGroups, setOpenGroups] = useState<Set<string>>(() =>
     new Set(groups.length > 0 ? [groups[0].label] : [])
   );
@@ -133,35 +134,50 @@ function ListView({
     <div className="space-y-2 pb-6">
       {/* Barre contrôles */}
       <div className="flex items-center justify-between mb-3">
-        <div
-          className="flex items-center gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
-          onClick={onToggleAll}
-        >
-          <Checkbox
-            checked={allSelected}
-            onCheckedChange={onToggleAll}
-            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-          />
-          <span>Tout sélectionner</span>
-        </div>
+        {selectionMode ? (
+          <div
+            className="flex items-center gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
+            onClick={onToggleAll}
+          >
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={onToggleAll}
+              className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+            />
+            <span>Tout sélectionner</span>
+          </div>
+        ) : <div />}
 
-        <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setGroupBy("day")}
-            className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
-              groupBy === "day" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            onClick={onToggleSelectionMode}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+              selectionMode
+                ? "text-primary bg-primary/10 hover:bg-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
             }`}
           >
-            Jour
+            {selectionMode ? "Annuler" : "Sélectionner"}
           </button>
-          <button
-            onClick={() => setGroupBy("month")}
-            className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
-              groupBy === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Mois
-          </button>
+
+          <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs">
+            <button
+              onClick={() => setGroupBy("day")}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                groupBy === "day" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Jour
+            </button>
+            <button
+              onClick={() => setGroupBy("month")}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                groupBy === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Mois
+            </button>
+          </div>
         </div>
       </div>
 
@@ -185,14 +201,16 @@ function ListView({
           <div key={group.label} className="bg-card border border-border rounded-xl overflow-hidden">
             {/* En-tête */}
             <div className="flex items-center px-4 py-3 hover:bg-muted/40 transition-colors">
-              <div className="mr-3 shrink-0" onClick={toggleGroupSelect}>
-                <Checkbox
-                  checked={allGroupSelected}
-                  data-state={someGroupSelected && !allGroupSelected ? "indeterminate" : undefined}
-                  onCheckedChange={() => {}}
-                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
-              </div>
+              {selectionMode && (
+                <div className="mr-3 shrink-0" onClick={toggleGroupSelect}>
+                  <Checkbox
+                    checked={allGroupSelected}
+                    data-state={someGroupSelected && !allGroupSelected ? "indeterminate" : undefined}
+                    onCheckedChange={() => {}}
+                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                </div>
+              )}
               <button
                 className="flex-1 flex items-center justify-between"
                 onClick={() => toggleGroup(group.label)}
@@ -219,14 +237,16 @@ function ListView({
                     className={`flex items-center px-4 py-3 cursor-pointer transition-colors select-none ${
                       selectedIds.has(s.id) ? "bg-primary/5" : "hover:bg-muted/30"
                     }`}
-                    onClick={() => onToggle(s.id)}
+                    onClick={() => selectionMode ? onToggle(s.id) : onNavigate(s.id)}
                   >
-                    <Checkbox
-                      checked={selectedIds.has(s.id)}
-                      onCheckedChange={() => onToggle(s.id)}
-                      className="mr-3 shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                      onClick={e => e.stopPropagation()}
-                    />
+                    {selectionMode && (
+                      <Checkbox
+                        checked={selectedIds.has(s.id)}
+                        onCheckedChange={() => onToggle(s.id)}
+                        className="mr-3 shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                        onClick={e => e.stopPropagation()}
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between">
                         <span className="font-semibold truncate">{s.name}</span>
@@ -244,12 +264,16 @@ function ListView({
                         )}
                       </div>
                     </div>
-                    <button
-                      className="ml-3 p-1.5 rounded-lg hover:bg-primary/10 shrink-0 transition-colors"
-                      onClick={e => { e.stopPropagation(); onNavigate(s.id); }}
-                    >
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    </button>
+                    {selectionMode ? (
+                      <button
+                        className="ml-3 p-1.5 rounded-lg hover:bg-primary/10 shrink-0 transition-colors"
+                        onClick={e => { e.stopPropagation(); onNavigate(s.id); }}
+                      >
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground ml-3 shrink-0" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -410,10 +434,18 @@ export default function Sessions() {
   const { data: sessions, isLoading } = useListSessions();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [selectionMode, setSelectionMode] = useState(false);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const bulkDelete = useBulkDeleteSessions();
   const { toast } = useToast();
+
+  const toggleSelectionMode = () => {
+    setSelectionMode(prev => {
+      if (prev) setSelectedIds(new Set()); // vide la sélection en quittant
+      return !prev;
+    });
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -496,13 +528,15 @@ export default function Sessions() {
             onToggle={toggleSelect}
             onToggleAll={toggleAll}
             onNavigate={navigateTo}
+            selectionMode={selectionMode}
+            onToggleSelectionMode={toggleSelectionMode}
           />
         ) : (
           <SessionsCalendarView sessions={sessions ?? []} onNavigate={navigateTo} />
         )}
       </div>
 
-      {selectedIds.size > 0 && viewMode === "list" && (
+      {selectedIds.size > 0 && selectionMode && viewMode === "list" && (
         <div className="shrink-0 bg-destructive/95 text-destructive-foreground px-4 py-3 flex justify-between items-center shadow-lg">
           <span className="text-sm font-medium">
             {selectedIds.size} sélectionnée{selectedIds.size > 1 ? "s" : ""}
