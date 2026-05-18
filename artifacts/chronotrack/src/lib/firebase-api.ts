@@ -83,6 +83,14 @@ export function useDeleteParticipant() {
   });
 }
 
+export function useUpdateParticipant() {
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { name: string } }): Promise<void> => {
+      await updateDoc(doc(db, "participants", id), { name: data.name });
+    },
+  });
+}
+
 // ─── Sessions ─────────────────────────────────────────────────────────────────
 
 export function useListSessions() {

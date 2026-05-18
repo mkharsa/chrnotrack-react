@@ -3,9 +3,9 @@ import {
   useListParticipants,
   useCreateParticipant,
   useDeleteParticipant,
+  useUpdateParticipant,
   useListSeries,
   getListParticipantsQueryKey,
-  type Series,
 } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
 import { format, parseISO } from "date-fns";
@@ -23,7 +23,11 @@ function AthleteHistory({ pid }: { pid: string }) {
   const { data: allSeries, isLoading } = useListSeries();
 
   if (isLoading) {
-    return <div className="px-4 py-3 animate-pulse space-y-2">{[1, 2].map(i => <div key={i} className="h-8 bg-muted rounded" />)}</div>;
+    return (
+      <div className="px-4 py-3 animate-pulse space-y-2 border-t border-border">
+        {[1, 2].map(i => <div key={i} className="h-8 bg-muted rounded" />)}
+      </div>
+    );
   }
 
   type Entry = { date: string; dist: string; timeMs: number };
@@ -49,7 +53,6 @@ function AthleteHistory({ pid }: { pid: string }) {
     if (!byDist.has(e.dist)) byDist.set(e.dist, []);
     byDist.get(e.dist)!.push(e);
   }
-
   const sortedDists = Array.from(byDist.keys()).sort((a, b) => Number(a) - Number(b));
 
   return (
@@ -57,13 +60,9 @@ function AthleteHistory({ pid }: { pid: string }) {
       {sortedDists.map(dist => {
         const all = byDist.get(dist)!.sort((a, b) => a.timeMs - b.timeMs);
         const best = all[0].timeMs;
-        const worst = all[all.length - 1].timeMs;
-
-        // 5 meilleurs + le pire (si pas déjà dans le top 5)
-        const top5 = all.slice(0, 5);
-        const worstEntry = all[all.length - 1];
         const showWorst = all.length > 5;
-        const displayed = showWorst ? [...top5, worstEntry] : top5;
+        const top5 = all.slice(0, 5);
+        const displayed = showWorst ? [...top5, all[all.length - 1]] : top5;
 
         return (
           <div key={dist} className="border-b border-border last:border-b-0">
@@ -83,17 +82,15 @@ function AthleteHistory({ pid }: { pid: string }) {
                 const isBest = e.timeMs === best;
                 return (
                   <div key={i} className={`px-4 py-2 flex items-center justify-between ${isWorstRow ? "bg-red-500/5" : ""}`}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-16 shrink-0">
                       {isWorstRow && <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">pire</span>}
                       {isBest && <span className="text-[10px] font-bold text-green-500 uppercase tracking-wider">meilleur</span>}
-                      {!isWorstRow && !isBest && <span className="text-[10px] text-muted-foreground w-10">#{i + 1}</span>}
+                      {!isWorstRow && !isBest && <span className="text-[10px] text-muted-foreground">#{i + 1}</span>}
                     </div>
-                    <span className="text-xs text-muted-foreground flex-1 ml-2">
+                    <span className="text-xs text-muted-foreground flex-1">
                       {format(parseISO(e.date), "d MMM yyyy", { locale: fr })}
                     </span>
-                    <span className={`font-mono text-sm font-bold tabular-nums ${
-                      isBest ? "text-green-500" : isWorstRow ? "text-red-400" : ""
-                    }`}>
+                    <span className={`font-mono text-sm font-bold tabular-nums ${isBest ? "text-green-500" : isWorstRow ? "text-red-400" : ""}`}>
                       {formatTime(e.timeMs)}
                     </span>
                   </div>
@@ -113,43 +110,45 @@ export default function Athletes() {
   const { data: participants, isLoading } = useListParticipants();
   const [newName, setNewName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const createParticipant = useCreateParticipant();
   const deleteParticipant = useDeleteParticipant();
+  const updateParticipant = useUpdateParticipant();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const toggleSelectionMode = () => {
+    setSelectionMode(prev => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  };
 
   const handleAdd = () => {
     const trimmed = newName.trim();
     if (!trimmed) return;
-    createParticipant.mutate(
-      { data: { name: trimmed } },
-      {
-        onSuccess: created => {
-          queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
-          setNewName("");
-          toast({ title: `Athlète "${created.name}" ajouté` });
-        },
-        onError: (err) => {
-          toast({ title: "Erreur Firestore", description: String(err), variant: "destructive" });
-        },
-      }
-    );
+    createParticipant.mutate({ data: { name: trimmed } }, {
+      onSuccess: created => {
+        queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
+        setNewName("");
+        toast({ title: `Athlète "${created.name}" ajouté` });
+      },
+      onError: err => toast({ title: "Erreur", description: String(err), variant: "destructive" }),
+    });
   };
 
   const handleDeleteOne = (id: string, name: string) => {
-    deleteParticipant.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
-          setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-          toast({ title: `"${name}" supprimé` });
-        },
-      }
-    );
+    deleteParticipant.mutate({ id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
+        setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+        toast({ title: `"${name}" supprimé` });
+      },
+    });
   };
 
   const handleBulkDelete = async () => {
@@ -157,6 +156,7 @@ export default function Athletes() {
     await Promise.all(ids.map(id => deleteParticipant.mutateAsync({ id })));
     queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
     setSelectedIds(new Set());
+    setSelectionMode(false);
     toast({ title: `${ids.length} athlète${ids.length > 1 ? "s" : ""} supprimé${ids.length > 1 ? "s" : ""}` });
   };
 
@@ -175,7 +175,8 @@ export default function Athletes() {
     else setSelectedIds(new Set(participants.map(p => p.id)));
   };
 
-  const startEdit = (id: string, currentName: string) => {
+  const startEdit = (id: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditingId(id);
     setEditValue(currentName);
     setExpandedId(null);
@@ -186,20 +187,18 @@ export default function Athletes() {
   const confirmEdit = (id: string, oldName: string) => {
     const trimmed = editValue.trim();
     if (!trimmed || trimmed === oldName) { cancelEdit(); return; }
-    deleteParticipant.mutate({ id }, {
+    updateParticipant.mutate({ id, data: { name: trimmed } }, {
       onSuccess: () => {
-        createParticipant.mutate({ data: { name: trimmed } }, {
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
-            setEditingId(null);
-            toast({ title: `Renommé en "${trimmed}"` });
-          }
-        });
-      }
+        queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
+        setEditingId(null);
+        toast({ title: `Renommé en "${trimmed}"` });
+      },
+      onError: err => toast({ title: "Erreur", description: String(err), variant: "destructive" }),
     });
   };
 
   const toggleExpand = (id: string) => {
+    if (selectionMode) return;
     setExpandedId(prev => prev === id ? null : id);
   };
 
@@ -230,7 +229,6 @@ export default function Athletes() {
           </Button>
         </div>
 
-        {/* Liste */}
         {isLoading ? (
           <div className="animate-pulse space-y-3">
             {[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-card rounded-lg" />)}
@@ -245,13 +243,32 @@ export default function Athletes() {
           </div>
         ) : (
           <div className="space-y-2 pb-20">
-            {/* Tout sélectionner */}
-            <div
-              className="flex items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
-              onClick={toggleAll}
-            >
-              <Checkbox checked={allSelected} onCheckedChange={toggleAll} className="mr-4" />
-              <span>Tout sélectionner</span>
+            {/* Barre contrôles */}
+            <div className="flex items-center justify-between mb-3">
+              {selectionMode ? (
+                <div
+                  className="flex items-center gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
+                  onClick={toggleAll}
+                >
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleAll}
+                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                  <span>Tout sélectionner</span>
+                </div>
+              ) : <div />}
+
+              <button
+                onClick={toggleSelectionMode}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                  selectionMode
+                    ? "text-primary bg-primary/10 hover:bg-primary/20"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {selectionMode ? "Annuler" : "Sélectionner"}
+              </button>
             </div>
 
             {participants?.map(p => (
@@ -260,23 +277,28 @@ export default function Athletes() {
               }`}>
                 {/* Ligne principale */}
                 <div
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none ${
                     selectedIds.has(p.id) ? "bg-primary/5" : "hover:bg-muted/30"
                   }`}
-                  onClick={() => editingId !== p.id && toggleExpand(p.id)}
+                  onClick={() => selectionMode ? toggleSelect(p.id) : toggleExpand(p.id)}
                 >
-                  <div onClick={e => { e.stopPropagation(); toggleSelect(p.id); }}>
-                    <Checkbox
-                      checked={selectedIds.has(p.id)}
-                      onCheckedChange={() => toggleSelect(p.id)}
-                      className="shrink-0"
-                    />
-                  </div>
+                  {/* Checkbox (mode sélection uniquement) */}
+                  {selectionMode && (
+                    <div onClick={e => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(p.id)}
+                        onCheckedChange={() => toggleSelect(p.id)}
+                        className="shrink-0"
+                      />
+                    </div>
+                  )}
 
+                  {/* Avatar */}
                   <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                     {p.name.charAt(0).toUpperCase()}
                   </div>
 
+                  {/* Nom ou champ d'édition */}
                   {editingId === p.id ? (
                     <div className="flex-1 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                       <Input
@@ -299,32 +321,39 @@ export default function Athletes() {
                   ) : (
                     <>
                       <span className="font-medium flex-1">{p.name}</span>
-                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                        <Button
-                          variant="ghost" size="sm"
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                          onClick={() => startEdit(p.id, p.name)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost" size="sm"
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeleteOne(p.id, p.name)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                      {expandedId === p.id
-                        ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                        : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                      }
+
+                      {/* Actions (masquées en mode sélection) */}
+                      {!selectionMode && (
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={e => startEdit(p.id, p.name, e)}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={e => { e.stopPropagation(); handleDeleteOne(p.id, p.name); }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Chevron expand (mode normal uniquement) */}
+                      {!selectionMode && (
+                        expandedId === p.id
+                          ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                          : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      )}
                     </>
                   )}
                 </div>
 
                 {/* Historique dépliant */}
-                {expandedId === p.id && <AthleteHistory pid={p.id} />}
+                {!selectionMode && expandedId === p.id && <AthleteHistory pid={p.id} />}
               </div>
             ))}
           </div>
@@ -332,7 +361,7 @@ export default function Athletes() {
       </div>
 
       {/* Barre suppression */}
-      {selectedIds.size > 0 && (
+      {selectedIds.size > 0 && selectionMode && (
         <div className="absolute bottom-4 left-4 right-4 bg-destructive text-destructive-foreground rounded-lg p-3 flex justify-between items-center shadow-lg animate-in slide-in-from-bottom-5">
           <span className="text-sm font-medium">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
