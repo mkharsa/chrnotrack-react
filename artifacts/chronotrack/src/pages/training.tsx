@@ -338,7 +338,7 @@ export default function Training() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-        <h2 className="font-semibold text-base">Programme</h2>
+        <h2 className="font-semibold text-base">Entraînement</h2>
         <div className="flex items-center gap-2">
           {selectionMode && selected.size > 0 && (
             <button
