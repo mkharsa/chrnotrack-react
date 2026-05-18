@@ -7,9 +7,16 @@ import { getAdminData, type AdminStats, type AdminUser } from "@/lib/admin-track
 const SESSION_KEY = "ct_admin_auth";
 const ADMIN_PWD = "aboudi";
 
-function fmt(ts: { seconds: number } | null | undefined): string {
-  if (!ts?.seconds) return "—";
+function fmtFirestore(ts: { seconds: number } | null | undefined): string {
+  if (!ts?.seconds) return "";
   return new Date(ts.seconds * 1000).toLocaleDateString("fr-FR", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+}
+
+function fmtISO(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("fr-FR", {
     day: "2-digit", month: "short", year: "numeric",
   });
 }
@@ -58,7 +65,7 @@ export default function Admin() {
     setError(null);
     getAdminData()
       .then(({ stats: s, users: u }) => { setStats(s); setUsers(u); })
-      .catch(e => setError(e?.message ?? "Erreur de chargement. Vérifiez les règles Firestore."))
+      .catch(e => setError(e?.message ?? "Erreur de chargement. Vérifiez que la Cloud Function est déployée et que les règles Firestore sont à jour."))
       .finally(() => setLoading(false));
   };
 
@@ -128,11 +135,8 @@ export default function Admin() {
         <div className="flex items-start gap-3 bg-destructive/10 border border-destructive/20 rounded-xl p-4">
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="text-sm font-medium text-destructive">Impossible de charger les données</p>
+            <p className="text-sm font-medium text-destructive">Erreur de chargement</p>
             <p className="text-xs text-muted-foreground">{error}</p>
-            <p className="text-xs text-muted-foreground">
-              Vérifiez que les règles Firestore sont bien déployées dans la Firebase Console.
-            </p>
           </div>
         </div>
       )}
@@ -145,6 +149,7 @@ export default function Admin() {
         </div>
       ) : (
         <>
+          {/* Stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
               icon={Users}
@@ -199,25 +204,36 @@ export default function Admin() {
           {/* Tableau utilisateurs */}
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-              <p className="text-sm font-semibold">Utilisateurs enregistrés</p>
+              <p className="text-sm font-semibold">Tous les utilisateurs</p>
               <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">{users.length}</span>
             </div>
             {users.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
-                Aucun utilisateur. Les utilisateurs apparaissent ici après leur prochaine connexion.
+                Aucun utilisateur. Déployez la Cloud Function pour voir tous les comptes.
               </p>
             ) : (
               <div className="divide-y divide-border">
-                {users.map((u, i) => (
-                  <div key={u.uid} className="flex items-center gap-3 px-4 py-3 text-sm">
-                    <span className="text-muted-foreground w-5 text-right shrink-0 text-xs">{i + 1}</span>
-                    <span className="font-mono text-xs text-muted-foreground truncate flex-1">{u.uid}</span>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-muted-foreground">1ère fois {fmt(u.firstSeen)}</p>
-                      <p className="text-xs text-muted-foreground">Dernier accès {fmt(u.lastSeen)}</p>
+                {users.map((u, i) => {
+                  const lastActive = u.lastSignIn
+                    ? fmtISO(u.lastSignIn)
+                    : fmtFirestore(u.lastSeen);
+                  const createdLabel = u.createdAt
+                    ? fmtISO(u.createdAt)
+                    : fmtFirestore(u.firstSeen);
+                  return (
+                    <div key={u.uid} className="flex items-center gap-3 px-4 py-3 text-sm">
+                      <span className="text-muted-foreground w-5 text-right shrink-0 text-xs">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium truncate">{u.email ?? u.uid}</p>
+                        {u.email && <p className="font-mono text-[10px] text-muted-foreground truncate">{u.uid}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-muted-foreground">Créé le {createdLabel}</p>
+                        <p className="text-xs text-muted-foreground">Actif le {lastActive}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
