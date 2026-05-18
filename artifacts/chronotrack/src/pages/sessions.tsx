@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey, useGetSession } from "@/lib/firebase-api";
+import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey, useGetSession, useListSeries } from "@/lib/firebase-api";
 import { exportSessionPDF } from "@/lib/export-pdf";
 import {
   format, isToday, parseISO,
@@ -57,14 +57,19 @@ function groupSessions(sessions: Session[], groupBy: GroupBy) {
 
 function ExportSessionButton({ session }: { session: Session }) {
   const { data: detail } = useGetSession(session.id);
+  const { data: allSeries } = useListSeries({ dateKey: session.date });
 
   const handleExport = (e: React.MouseEvent) => {
     e.stopPropagation();
     const participants = detail?.participants ?? [];
+    const series = (allSeries ?? [])
+      .filter(s => s.sessionId === session.id)
+      .map(s => ({ id: s.id, dist: s.dist, entries: s.entries }));
     exportSessionPDF({
       name: session.name,
       date: session.date,
       participants,
+      series,
     });
   };
 
