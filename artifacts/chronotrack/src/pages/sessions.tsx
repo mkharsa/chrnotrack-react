@@ -15,6 +15,7 @@ import { parseDistance } from "@/lib/time";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 type Session = {
@@ -520,8 +521,16 @@ export default function Sessions() {
 
       <div className="flex-1 overflow-y-auto p-4">
         {isLoading ? (
-          <div className="animate-pulse space-y-3">
-            {[1, 2, 3].map(i => <div key={i} className="h-16 bg-card rounded-xl" />)}
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="rounded-xl border border-border p-4 space-y-2">
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ))}
           </div>
         ) : sessions?.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">

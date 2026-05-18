@@ -1,8 +1,9 @@
-import { useRef } from "react";
+import { useRef, Component, type ReactNode } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { toast } from "@/hooks/use-toast";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import Sessions from "@/pages/sessions";
@@ -14,7 +15,68 @@ import Training from "@/pages/training";
 import FreeChrono from "@/pages/free-chrono";
 import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
-import { Clock } from "lucide-react";
+import { AlertTriangle, Clock } from "lucide-react";
+
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-6">
+          <div className="text-center space-y-4 max-w-sm">
+            <AlertTriangle className="w-12 h-12 text-destructive mx-auto" />
+            <h2 className="font-semibold text-lg">Une erreur est survenue</h2>
+            <p className="text-sm text-muted-foreground">{(this.state.error as Error).message}</p>
+            <button
+              onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+            >
+              Recharger l'application
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── QueryClient factory ──────────────────────────────────────────────────────
+
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 5,        // 5 min before refetch
+        gcTime: 1000 * 60 * 10,          // 10 min cache retention
+        refetchOnWindowFocus: false,      // mobile-friendly
+        retry: (count, error) => {
+          const code = (error as { code?: string })?.code ?? "";
+          if (code === "permission-denied" || code === "unauthenticated") return false;
+          return count < 2;
+        },
+      },
+    },
+    queryCache: new QueryCache({
+      onError: (error) => {
+        const msg = (error as Error).message;
+        if (!msg.includes("Not authenticated")) {
+          toast({ title: "Erreur de chargement", description: msg, variant: "destructive" });
+        }
+      },
+    }),
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        toast({ title: "Erreur", description: (error as Error).message, variant: "destructive" });
+      },
+    }),
+  });
+}
+
+// ─── Screens ─────────────────────────────────────────────────────────────────
 
 function LoadingScreen() {
   return (
@@ -34,7 +96,7 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={() => <Redirect to="/sessions" />} />
+        <Route path="/" component={() => <Redirect to="/training" />} />
         <Route path="/sessions" component={Sessions} />
         <Route path="/sessions/:id/chrono" component={Chrono} />
         <Route path="/athletes" component={Athletes} />
@@ -48,23 +110,26 @@ function Router() {
   );
 }
 
+// ─── App ──────────────────────────────────────────────────────────────────────
+
 function App() {
   const queryClientRef = useRef<QueryClient | null>(null);
-  if (!queryClientRef.current) queryClientRef.current = new QueryClient();
-  const handleUserChange = () => {
-    queryClientRef.current = new QueryClient();
-  };
+  if (!queryClientRef.current) queryClientRef.current = makeQueryClient();
+  const handleUserChange = () => { queryClientRef.current = makeQueryClient(); };
+
   return (
-    <AuthProvider onUserChange={handleUserChange}>
-      <QueryClientProvider client={queryClientRef.current}>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider onUserChange={handleUserChange}>
+        <QueryClientProvider client={queryClientRef.current}>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

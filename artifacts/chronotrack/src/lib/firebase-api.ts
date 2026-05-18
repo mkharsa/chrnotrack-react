@@ -1,7 +1,8 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   collection, getDocs, getDoc, addDoc, deleteDoc, updateDoc,
-  doc, serverTimestamp, writeBatch, CollectionReference, DocumentReference,
+  doc, serverTimestamp, writeBatch, query, orderBy, limit,
+  CollectionReference, DocumentReference,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
 
@@ -84,10 +85,8 @@ export function useListParticipants() {
   return useQuery({
     queryKey: getListParticipantsQueryKey(),
     queryFn: async (): Promise<Participant[]> => {
-      const snap = await getDocs(userCol("participants"));
-      return snap.docs
-        .map(d => ({ id: d.id, name: d.data().name as string }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+      const snap = await getDocs(query(userCol("participants"), orderBy("name"), limit(500)));
+      return snap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
     },
   });
 }
@@ -125,19 +124,17 @@ export function useListSessions() {
   return useQuery({
     queryKey: getListSessionsQueryKey(),
     queryFn: async (): Promise<Session[]> => {
-      const snap = await getDocs(userCol("sessions"));
-      return snap.docs
-        .map(d => {
-          const data = d.data();
-          return {
-            id: d.id,
-            name: data.name as string,
-            date: data.date as string,
-            defaultDist: (data.defaultDist as string | null) ?? null,
-            participantCount: ((data.participants ?? []) as SessionParticipant[]).length,
-          };
-        })
-        .sort((a, b) => b.date.localeCompare(a.date));
+      const snap = await getDocs(query(userCol("sessions"), orderBy("date", "desc"), limit(300)));
+      return snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.name as string,
+          date: data.date as string,
+          defaultDist: (data.defaultDist as string | null) ?? null,
+          participantCount: ((data.participants ?? []) as SessionParticipant[]).length,
+        };
+      });
     },
   });
 }
@@ -238,15 +235,11 @@ export function useListSeries(params?: { dateKey?: string }) {
   return useQuery({
     queryKey: getListSeriesQueryKey(params),
     queryFn: async (): Promise<Series[]> => {
-      const snap = await getDocs(userCol("series"));
+      const snap = await getDocs(query(userCol("series"), orderBy("dateKey", "desc"), limit(500)));
       return snap.docs
         .filter(d => {
           const data = d.data();
-          return (
-            data.dateKey &&
-            data.dist &&
-            (!params?.dateKey || data.dateKey === params.dateKey)
-          );
+          return data.dateKey && data.dist && (!params?.dateKey || data.dateKey === params.dateKey);
         })
         .map(d => {
           const data = d.data();
@@ -259,8 +252,7 @@ export function useListSeries(params?: { dateKey?: string }) {
               e => e && e.pid && typeof e.timeMs === "number"
             ),
           } satisfies Series;
-        })
-        .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+        });
     },
   });
 }
@@ -323,10 +315,8 @@ export function useGetProgression(params: { dist: string; groupBy: "session" | "
   return useQuery({
     queryKey: ["progression", params.dist, params.groupBy],
     queryFn: async (): Promise<ProgressionData[]> => {
-      const snap = await getDocs(userCol("series"));
-      const filtered = snap.docs
-        .filter(d => d.data().dist === params.dist)
-        .sort((a, b) => (a.data().dateKey as string).localeCompare(b.data().dateKey as string));
+      const snap = await getDocs(query(userCol("series"), orderBy("dateKey", "asc"), limit(500)));
+      const filtered = snap.docs.filter(d => d.data().dist === params.dist);
 
       const participantMap = new Map<string, { name: string; periodData: Map<string, number[]> }>();
 
@@ -438,7 +428,7 @@ export function useListTraining() {
   return useQuery({
     queryKey: getListTrainingQueryKey(),
     queryFn: async (): Promise<TrainingPlan[]> => {
-      const snap = await getDocs(userCol("training"));
+      const snap = await getDocs(query(userCol("training"), orderBy("date", "desc"), limit(200)));
       return snap.docs
         .map(d => {
           const data = d.data();

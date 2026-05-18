@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, UserPlus, Users, Pencil, Check, X, ChevronDown, ChevronRight, TrendingDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Historique d'un athlète ───────────────────────────────────────────────────
@@ -230,8 +231,13 @@ export default function Athletes() {
         </div>
 
         {isLoading ? (
-          <div className="animate-pulse space-y-3">
-            {[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-card rounded-lg" />)}
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex items-center gap-3 px-3 py-3 border border-border rounded-lg">
+                <Skeleton className="w-8 h-8 rounded-full" />
+                <Skeleton className="h-4 flex-1 max-w-[140px]" />
+              </div>
+            ))}
           </div>
         ) : participants?.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">

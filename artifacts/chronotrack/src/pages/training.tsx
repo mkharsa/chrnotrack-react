@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Timer, Trash2, ChevronDown, ChevronUp, ExternalLink, Users, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -333,7 +334,25 @@ export default function Training() {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Chargement…</div>;
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-8 w-24" />
+        </div>
+        <div className="flex-1 px-4 py-4 space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="rounded-xl border border-border p-4 space-y-2">
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <Skeleton className="h-3 w-28" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
