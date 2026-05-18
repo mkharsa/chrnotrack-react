@@ -261,7 +261,15 @@ function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantN
           {plan.exercises.length > 0 && (
             <div className="space-y-1.5 pt-1">
               {plan.exercises.map((ex, i) => (
-                <div key={ex.id} className="flex items-center justify-between gap-2">
+                <div
+                  key={ex.id}
+                  onClick={() => ex.needsChrono && ex.sessionId && navigate(`/sessions/${ex.sessionId}/chrono`)}
+                  className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg transition-colors ${
+                    ex.needsChrono && ex.sessionId
+                      ? "cursor-pointer hover:bg-primary/10 active:bg-primary/20"
+                      : ""
+                  }`}
+                >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xs text-muted-foreground shrink-0">{i + 1}.</span>
                     <span className="text-sm truncate">{ex.name}</span>
@@ -273,13 +281,7 @@ function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantN
                     )}
                   </div>
                   {ex.needsChrono && ex.sessionId && (
-                    <button
-                      onClick={() => navigate(`/sessions/${ex.sessionId}/chrono`)}
-                      className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      Session
-                    </button>
+                    <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
                   )}
                 </div>
               ))}
