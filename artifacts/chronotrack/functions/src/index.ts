@@ -23,11 +23,15 @@ export const getAuthUsers = onCall({ cors: true }, async (request) => {
   do {
     const result = await admin.auth().listUsers(1000, pageToken);
     for (const u of result.users) {
-      const provider = u.providerData?.[0]?.providerId ?? null;
+      const providerInfo = u.providerData?.[0];
+      const provider = providerInfo?.providerId ?? "anonymous";
+      // Top-level fields first, then fall back to providerData
+      const email = u.email ?? providerInfo?.email ?? null;
+      const displayName = u.displayName ?? providerInfo?.displayName ?? null;
       users.push({
         uid: u.uid,
-        email: u.email ?? null,
-        displayName: u.displayName ?? null,
+        email,
+        displayName,
         provider,
         createdAt: u.metadata.creationTime ?? null,
         lastSignIn: u.metadata.lastSignInTime ?? null,
