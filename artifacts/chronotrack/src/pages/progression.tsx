@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { useGetProgression, useGetProgressionSummary, useListDistances, createPublicShare, type ProgressionPeriod } from "@/lib/firebase-api";
+import { useGetProgression, useGetProgressionSummary, useListDistances, useListSeries, createPublicShare, type ProgressionPeriod } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
 import { exportProgressionPDF } from "@/lib/export-pdf";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Minus, Download, Share2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Download, Share2, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   LineChart,
@@ -63,6 +63,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 export default function Progression() {
   const [groupBy, setGroupBy] = useState<"session" | "month">("session");
   const [distance, setDistance] = useState<string>("");
+  const [selectedAthlete, setSelectedAthlete] = useState<string>("all");
   const [sharingId, setSharingId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -73,12 +74,34 @@ export default function Progression() {
       setDistance(distances[0]);
     }
   }, [distances]);
+
   const { data: summary } = useGetProgressionSummary();
   const { data: progression, isLoading: isProgLoading } = useGetProgression({ dist: distance, groupBy });
+  const { data: allSeries } = useListSeries();
+
+  // Filter progression by selected athlete
+  const filteredProgression = selectedAthlete === "all"
+    ? progression
+    : progression?.filter(p => p.participantId === selectedAthlete);
+
+  // Get all individual times for the selected athlete + distance
+  const athleteRawTimes = (() => {
+    if (selectedAthlete === "all" || !allSeries || !distance) return [];
+    const athlete = progression?.find(p => p.participantId === selectedAthlete);
+    if (!athlete) return [];
+    return allSeries
+      .filter(s => s.dist === distance)
+      .flatMap(s => s.entries
+        .filter(e => e.pid === selectedAthlete)
+        .map(e => ({ date: s.dateKey, timeMs: e.timeMs, include: e.include }))
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
+  })();
 
   const handleExportPDF = () => {
-    if (!progression || progression.length === 0) return;
-    exportProgressionPDF(progression, distance);
+    const data = filteredProgression ?? [];
+    if (data.length === 0) return;
+    exportProgressionPDF(data, distance);
   };
 
   const handleShare = async (participantId: string, athleteName: string, periods: ProgressionPeriod[]) => {
@@ -101,17 +124,16 @@ export default function Progression() {
 
   // Build chart data: one row per period, one key per athlete
   const chartData = (() => {
-    if (!progression || progression.length === 0) return [];
-    // Collect all unique period labels in order
+    if (!filteredProgression || filteredProgression.length === 0) return [];
     const allLabels: string[] = [];
-    for (const p of progression) {
+    for (const p of filteredProgression) {
       for (const period of p.periods) {
         if (!allLabels.includes(period.label)) allLabels.push(period.label);
       }
     }
     return allLabels.map(label => {
       const row: Record<string, number | string> = { label };
-      for (const p of progression) {
+      for (const p of filteredProgression) {
         const period = p.periods.find(x => x.label === label);
         if (period) row[p.name] = msToSec(period.avgMs);
       }
@@ -119,13 +141,13 @@ export default function Progression() {
     });
   })();
 
-  const hasChart = chartData.length >= 1 && progression && progression.length > 0;
+  const hasChart = chartData.length >= 1 && filteredProgression && filteredProgression.length > 0;
   const isEvolution = chartData.length >= 2;
 
   // For single-period: one bar per athlete
   const barData = (() => {
-    if (!progression || chartData.length !== 1) return [];
-    return progression.map((p, i) => ({
+    if (!filteredProgression || chartData.length !== 1) return [];
+    return filteredProgression.map((p, i) => ({
       name: p.name,
       value: p.periods[0] ? msToSec(p.periods[0].avgMs) : null,
       color: ATHLETE_COLORS[i % ATHLETE_COLORS.length],
@@ -150,9 +172,9 @@ export default function Progression() {
           </div>
         )}
 
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={distance} onValueChange={setDistance}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="w-[110px]">
               <SelectValue placeholder="Distance" />
             </SelectTrigger>
             <SelectContent>
@@ -165,17 +187,33 @@ export default function Progression() {
             </SelectContent>
           </Select>
 
-          <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as "session" | "month")} className="w-[220px]">
+          {/* Filtre athlète */}
+          {progression && progression.length > 0 && (
+            <Select value={selectedAthlete} onValueChange={v => setSelectedAthlete(v)}>
+              <SelectTrigger className="w-[150px]">
+                <User className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Athlète" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les athlètes</SelectItem>
+                {progression.map(p => (
+                  <SelectItem key={p.participantId} value={p.participantId}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as "session" | "month")} className="w-[200px]">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="session">Par séance</TabsTrigger>
               <TabsTrigger value="month">Par mois</TabsTrigger>
             </TabsList>
           </Tabs>
 
-          {progression && progression.length > 0 && (
+          {filteredProgression && filteredProgression.length > 0 && (
             <Button size="sm" variant="outline" onClick={handleExportPDF} className="gap-1.5">
               <Download className="w-4 h-4" />
-              Exporter PDF
+              PDF
             </Button>
           )}
         </div>
@@ -187,7 +225,7 @@ export default function Progression() {
             <div className="h-56 bg-card rounded-xl" />
             {[1, 2].map(i => <div key={i} className="h-32 bg-card rounded-lg" />)}
           </div>
-        ) : progression?.length === 0 ? (
+        ) : filteredProgression?.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">
             Aucune donnée pour cette distance.
           </div>
@@ -222,7 +260,7 @@ export default function Progression() {
                         domain={["auto", "auto"]}
                       />
                       <Tooltip content={<CustomTooltip />} />
-                      {progression && progression.length > 1 && (
+                      {filteredProgression && filteredProgression.length > 1 && (
                         <Legend
                           wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
                           formatter={(value) => (
@@ -230,7 +268,7 @@ export default function Progression() {
                           )}
                         />
                       )}
-                      {progression?.map((p, i) => (
+                      {filteredProgression?.map((p, i) => (
                         <Line
                           key={p.participantId}
                           type="monotone"
@@ -287,8 +325,53 @@ export default function Progression() {
               </div>
             )}
 
+            {/* ── Tous les temps individuels (quand un athlète est sélectionné) ── */}
+            {selectedAthlete !== "all" && athleteRawTimes.length > 0 && (
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                  <p className="text-sm font-semibold">Tous les temps — {distance}m</p>
+                  <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">
+                    {athleteRawTimes.length} temps
+                  </span>
+                </div>
+                <div className="divide-y divide-border">
+                  {athleteRawTimes.map((t, i) => {
+                    const isBest = t.timeMs === Math.min(...athleteRawTimes.map(x => x.timeMs));
+                    return (
+                      <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="text-muted-foreground text-xs w-5 text-right">{i + 1}</span>
+                          <span className="text-muted-foreground text-xs">{t.date}</span>
+                          {!t.include && (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">exclu</span>
+                          )}
+                        </div>
+                        <span className={`font-mono font-bold text-sm ${isBest ? "text-green-600" : ""}`}>
+                          {isBest && <span className="text-[10px] mr-1">🏆</span>}
+                          {formatTime(t.timeMs)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Stats résumé */}
+                <div className="border-t border-border px-4 py-3 grid grid-cols-3 gap-2 bg-muted/30">
+                  {[
+                    { label: "Meilleur", value: formatTime(Math.min(...athleteRawTimes.map(t => t.timeMs))), color: "text-green-600" },
+                    { label: "Moyen", value: formatTime(Math.round(athleteRawTimes.reduce((s, t) => s + t.timeMs, 0) / athleteRawTimes.length)), color: "" },
+                    { label: "Pire", value: formatTime(Math.max(...athleteRawTimes.map(t => t.timeMs))), color: "text-red-500" },
+                  ].map(stat => (
+                    <div key={stat.label} className="text-center">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.label}</div>
+                      <div className={`font-mono font-bold text-sm ${stat.color}`}>{stat.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* ── Carte + graphique individuel par athlète ── */}
-            {progression?.map((p, athleteIdx) => {
+            {filteredProgression?.map((p, athleteIdx) => {
               const color = ATHLETE_COLORS[athleteIdx % ATHLETE_COLORS.length];
               const miniData = p.periods.map(period => ({
                 label: period.label,
