@@ -40,9 +40,22 @@ jobs:
       - name: Build debug APK
         run: cd artifacts/chronotrack/android && ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ChronoTrack-debug
           path: artifacts/chronotrack/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      - name: Deploy to Firebase App Distribution
+        if: ${{ secrets.FIREBASE_TOKEN != '' && secrets.FIREBASE_ANDROID_APP_ID != '' }}
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          token: ${{ secrets.FIREBASE_TOKEN }}
+          file: artifacts/chronotrack/android/app/build/outputs/apk/debug/app-debug.apk
+          releaseNotes: |
+            Commit: ${{ github.sha }}
+            Branch: ${{ github.ref_name }}
+            Message: ${{ github.event.head_commit.message }}
+          groups: testers
