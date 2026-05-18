@@ -175,25 +175,11 @@ export default function Progression() {
         )}
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={distance} onValueChange={setDistance}>
-            <SelectTrigger className="w-[110px]">
-              <SelectValue placeholder="Distance" />
-            </SelectTrigger>
-            <SelectContent>
-              {distances?.map(d => (
-                <SelectItem key={d} value={d}>{d}m</SelectItem>
-              ))}
-              {(!distances || distances.length === 0) && (
-                <SelectItem value="400">400m</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-
-          {/* Filtre athlète */}
+          {/* Filtre athlète — toujours visible en premier */}
           {progression && progression.length > 0 && (
             <Select value={selectedAthlete} onValueChange={v => setSelectedAthlete(v)}>
-              <SelectTrigger className="w-[150px]">
-                <User className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+              <SelectTrigger className="w-[160px]">
+                <User className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
                 <SelectValue placeholder="Athlète" />
               </SelectTrigger>
               <SelectContent>
@@ -205,12 +191,31 @@ export default function Progression() {
             </Select>
           )}
 
+          {/* Filtre distance — masqué quand un athlète est sélectionné (on voit toutes ses distances) */}
+          {selectedAthlete === "all" && (
+            <Select value={distance} onValueChange={setDistance}>
+              <SelectTrigger className="w-[110px]">
+                <SelectValue placeholder="Distance" />
+              </SelectTrigger>
+              <SelectContent>
+                {distances?.map(d => (
+                  <SelectItem key={d} value={d}>{d}m</SelectItem>
+                ))}
+                {(!distances || distances.length === 0) && (
+                  <SelectItem value="400">400m</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          )}
+
+          {selectedAthlete === "all" && (
           <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as "session" | "month")} className="w-[200px]">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="session">Par séance</TabsTrigger>
               <TabsTrigger value="month">Par mois</TabsTrigger>
             </TabsList>
           </Tabs>
+          )}
 
           {filteredProgression && filteredProgression.length > 0 && (
             <Button size="sm" variant="outline" onClick={handleExportPDF} className="gap-1.5">
@@ -227,14 +232,18 @@ export default function Progression() {
             <div className="h-56 bg-card rounded-xl" />
             {[1, 2].map(i => <div key={i} className="h-32 bg-card rounded-lg" />)}
           </div>
+        ) : selectedAthlete !== "all" && athleteAllDistances.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            Aucune performance enregistrée pour cet athlète.
+          </div>
         ) : filteredProgression?.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">
             Aucune donnée pour cette distance.
           </div>
         ) : (
           <>
-            {/* ── Graphique ── */}
-            {hasChart && (
+            {/* ── Graphique — masqué quand un athlète est sélectionné ── */}
+            {hasChart && selectedAthlete === "all" && (
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
                   {isEvolution ? `Évolution — ${distance}m` : `Comparaison — ${distance}m`}
@@ -376,8 +385,8 @@ export default function Progression() {
               );
             })}
 
-            {/* ── Carte + graphique individuel par athlète ── */}
-            {filteredProgression?.map((p, athleteIdx) => {
+            {/* ── Carte + graphique individuel par athlète — masqué si filtre athlète actif ── */}
+            {selectedAthlete === "all" && filteredProgression?.map((p, athleteIdx) => {
               const color = ATHLETE_COLORS[athleteIdx % ATHLETE_COLORS.length];
               const miniData = p.periods.map(period => ({
                 label: period.label,
