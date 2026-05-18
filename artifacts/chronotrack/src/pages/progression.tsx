@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
-import { useGetProgression, useGetProgressionSummary, useListDistances } from "@/lib/firebase-api";
+import { useGetProgression, useGetProgressionSummary, useListDistances, createPublicShare, type ProgressionPeriod } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
+import { exportProgressionPDF } from "@/lib/export-pdf";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, Minus, Download, Share2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import {
   LineChart,
   Line,
@@ -60,6 +63,8 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 export default function Progression() {
   const [groupBy, setGroupBy] = useState<"session" | "month">("session");
   const [distance, setDistance] = useState<string>("");
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const { data: distances } = useListDistances();
 
@@ -70,6 +75,29 @@ export default function Progression() {
   }, [distances]);
   const { data: summary } = useGetProgressionSummary();
   const { data: progression, isLoading: isProgLoading } = useGetProgression({ dist: distance, groupBy });
+
+  const handleExportPDF = () => {
+    if (!progression || progression.length === 0) return;
+    exportProgressionPDF(progression, distance);
+  };
+
+  const handleShare = async (participantId: string, athleteName: string, periods: ProgressionPeriod[]) => {
+    setSharingId(participantId);
+    try {
+      const token = await createPublicShare({ dist: distance, athleteName, periods });
+      const base = window.location.origin + (import.meta.env.BASE_URL ?? "").replace(/\/$/, "");
+      const link = `${base}/share/${token}`;
+      await navigator.clipboard.writeText(link).catch(() => {});
+      toast({
+        title: "Lien copié !",
+        description: `Le lien de partage a été copié dans le presse-papier. Valable 30 jours.`,
+      });
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de créer le lien de partage.", variant: "destructive" });
+    } finally {
+      setSharingId(null);
+    }
+  };
 
   // Build chart data: one row per period, one key per athlete
   const chartData = (() => {
@@ -143,6 +171,13 @@ export default function Progression() {
               <TabsTrigger value="month">Par mois</TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {progression && progression.length > 0 && (
+            <Button size="sm" variant="outline" onClick={handleExportPDF} className="gap-1.5">
+              <Download className="w-4 h-4" />
+              Exporter PDF
+            </Button>
+          )}
         </div>
       </div>
 
@@ -276,12 +311,22 @@ export default function Progression() {
                       </div>
                       <h3 className="font-bold text-base">{p.name}</h3>
                     </div>
-                    {best !== null && (
-                      <div className="text-right">
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Meilleur</div>
-                        <div className="font-mono text-sm font-bold text-green-600">{formatTime(best)}</div>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {best !== null && (
+                        <div className="text-right">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Meilleur</div>
+                          <div className="font-mono text-sm font-bold text-green-600">{formatTime(best)}</div>
+                        </div>
+                      )}
+                      <button
+                        className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+                        title="Partager"
+                        disabled={sharingId === p.participantId}
+                        onClick={() => handleShare(p.participantId, p.name, p.periods)}
+                      >
+                        <Share2 className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Mini graphique individuel */}

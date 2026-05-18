@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey } from "@/lib/firebase-api";
+import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey, useGetSession } from "@/lib/firebase-api";
+import { exportSessionPDF } from "@/lib/export-pdf";
 import {
   format, isToday, parseISO,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -9,7 +10,7 @@ import { fr } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, ChevronDown, UserPlus, List, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, ChevronDown, UserPlus, List, ChevronLeft, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseDistance } from "@/lib/time";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -54,6 +55,30 @@ function groupSessions(sessions: Session[], groupBy: GroupBy) {
 
 // ── Carte session ─────────────────────────────────────────────────────────────
 
+function ExportSessionButton({ session }: { session: Session }) {
+  const { data: detail } = useGetSession(session.id);
+
+  const handleExport = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const participants = detail?.participants ?? [];
+    exportSessionPDF({
+      name: session.name,
+      date: session.date,
+      participants,
+    });
+  };
+
+  return (
+    <button
+      className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
+      title="Exporter PDF"
+      onClick={handleExport}
+    >
+      <Download className="w-4 h-4 text-muted-foreground" />
+    </button>
+  );
+}
+
 function SessionCard({
   session, selected, onToggle, onClick,
 }: {
@@ -97,7 +122,10 @@ function SessionCard({
         </div>
       </div>
 
-      <ChevronRight className="w-4 h-4 text-muted-foreground ml-3 shrink-0 group-hover:text-primary transition-colors" />
+      <div className="flex items-center gap-1 ml-3">
+        <ExportSessionButton session={session} />
+        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+      </div>
     </div>
   );
 }
@@ -275,16 +303,19 @@ function ListView({
                         )}
                       </div>
                     </div>
-                    {selectionMode ? (
-                      <button
-                        className="ml-3 p-1.5 rounded-lg hover:bg-primary/10 shrink-0 transition-colors"
-                        onClick={e => { e.stopPropagation(); onNavigate(s.id); }}
-                      >
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground ml-3 shrink-0" />
-                    )}
+                    <div className="flex items-center gap-1 ml-3">
+                      {!selectionMode && <ExportSessionButton session={s} />}
+                      {selectionMode ? (
+                        <button
+                          className="p-1.5 rounded-lg hover:bg-primary/10 shrink-0 transition-colors"
+                          onClick={e => { e.stopPropagation(); onNavigate(s.id); }}
+                        >
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

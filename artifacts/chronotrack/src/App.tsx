@@ -15,6 +15,9 @@ import Training from "@/pages/training";
 import FreeChrono from "@/pages/free-chrono";
 import Admin from "@/pages/admin";
 import Login from "@/pages/login";
+import Landing from "@/pages/landing";
+import ShareView from "@/pages/share";
+import Onboarding from "@/components/onboarding";
 import NotFound from "@/pages/not-found";
 import { AlertTriangle, Clock } from "lucide-react";
 
@@ -97,22 +100,27 @@ function Router() {
     <Switch>
       {/* Admin: fully standalone, password-only, no Firebase auth required */}
       <Route path="/admin" component={Admin} />
+      {/* Public share route — accessible without auth */}
+      <Route path="/share/:token" component={ShareView} />
       <Route>
         <>
-          {loading ? <LoadingScreen /> : !user ? <Login /> : (
-            <Layout>
-              <Switch>
-                <Route path="/" component={() => <Redirect to="/training" />} />
-                <Route path="/sessions" component={Sessions} />
-                <Route path="/sessions/:id/chrono" component={Chrono} />
-                <Route path="/athletes" component={Athletes} />
-                <Route path="/calendar" component={CalendarView} />
-                <Route path="/progression" component={Progression} />
-                <Route path="/training" component={Training} />
-                <Route path="/free-chrono" component={FreeChrono} />
-                <Route component={NotFound} />
-              </Switch>
-            </Layout>
+          {loading ? <LoadingScreen /> : !user ? <Landing /> : (
+            <>
+              <Onboarding />
+              <Layout>
+                <Switch>
+                  <Route path="/" component={() => <Redirect to="/training" />} />
+                  <Route path="/sessions" component={Sessions} />
+                  <Route path="/sessions/:id/chrono" component={Chrono} />
+                  <Route path="/athletes" component={Athletes} />
+                  <Route path="/calendar" component={CalendarView} />
+                  <Route path="/progression" component={Progression} />
+                  <Route path="/training" component={Training} />
+                  <Route path="/free-chrono" component={FreeChrono} />
+                  <Route component={NotFound} />
+                </Switch>
+              </Layout>
+            </>
           )}
         </>
       </Route>

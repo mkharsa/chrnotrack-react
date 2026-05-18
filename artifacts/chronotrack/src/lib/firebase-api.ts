@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   collection, getDocs, getDoc, addDoc, deleteDoc, updateDoc,
-  doc, serverTimestamp, writeBatch, query, orderBy, limit,
+  doc, serverTimestamp, writeBatch, query, orderBy, limit, setDoc, Timestamp,
   CollectionReference, DocumentReference,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
@@ -295,7 +295,7 @@ export function useDeleteSeries() {
 
 // ─── Progression ──────────────────────────────────────────────────────────────
 
-type ProgressionPeriod = {
+export type ProgressionPeriod = {
   label: string;
   avgMs: number;
   count: number;
@@ -487,5 +487,46 @@ export function useDeleteTrainingPlan() {
     mutationFn: async ({ id }: { id: string }): Promise<void> => {
       await deleteDoc(userDocRef("training", id));
     },
+  });
+}
+
+// ─── Public Shares ────────────────────────────────────────────────────────────
+
+export type PublicShareData = {
+  dist: string;
+  athleteName: string;
+  periods: ProgressionPeriod[];
+  createdAt: Timestamp;
+  expiresAt: Timestamp;
+};
+
+export async function createPublicShare(data: {
+  dist: string;
+  athleteName: string;
+  periods: ProgressionPeriod[];
+}): Promise<string> {
+  const token = crypto.randomUUID();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  await setDoc(doc(db, "publicShares", token), {
+    dist: data.dist,
+    athleteName: data.athleteName,
+    periods: data.periods,
+    createdAt: Timestamp.fromDate(now),
+    expiresAt: Timestamp.fromDate(expiresAt),
+  });
+  return token;
+}
+
+export function useGetPublicShare(token: string) {
+  return useQuery({
+    queryKey: ["publicShare", token],
+    queryFn: async (): Promise<PublicShareData | null> => {
+      if (!token) return null;
+      const snap = await getDoc(doc(db, "publicShares", token));
+      if (!snap.exists()) return null;
+      return snap.data() as PublicShareData;
+    },
+    enabled: !!token,
   });
 }
