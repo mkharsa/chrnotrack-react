@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
-  signInWithPopup, GoogleAuthProvider,
+  signInWithPopup, signInWithRedirect, getRedirectResult,
+  GoogleAuthProvider,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+
+// Detect Capacitor native environment (Android / iOS)
+const isNative = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+  .Capacitor?.isNativePlatform?.();
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Clock, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
@@ -48,6 +53,12 @@ export default function Login() {
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
+  // On native, catch the redirect result after Google sign-in
+  useEffect(() => {
+    if (!isNative) return;
+    getRedirectResult(auth).catch(() => {/* ignore */});
+  }, []);
+
   const isLocked = lockedUntil !== null && Date.now() < lockedUntil;
   const lockRemaining = lockedUntil ? Math.ceil((lockedUntil - Date.now()) / 60000) : 0;
 
@@ -64,8 +75,15 @@ export default function Login() {
 
   const handleGoogle = async () => {
     setError(null);
-    try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-    catch (e) { handleError(e); }
+    const provider = new GoogleAuthProvider();
+    try {
+      if (isNative) {
+        // signInWithRedirect works better in Capacitor WebView
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
+    } catch (e) { handleError(e); }
   };
 
   const handleEmail = async () => {
