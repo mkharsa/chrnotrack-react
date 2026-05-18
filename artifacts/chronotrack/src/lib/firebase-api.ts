@@ -492,26 +492,32 @@ export function useDeleteTrainingPlan() {
 
 // ─── Public Shares ────────────────────────────────────────────────────────────
 
-export type PublicShareData = {
+export type PublicShareDistance = {
   dist: string;
+  times: { date: string; timeMs: number; include: boolean }[];
+};
+
+export type PublicShareData = {
   athleteName: string;
-  periods: ProgressionPeriod[];
+  // Single-distance share (legacy)
+  dist?: string;
+  periods?: ProgressionPeriod[];
+  // Multi-distance share
+  distances?: PublicShareDistance[];
   createdAt: Timestamp;
   expiresAt: Timestamp;
 };
 
 export async function createPublicShare(data: {
-  dist: string;
   athleteName: string;
-  periods: ProgressionPeriod[];
+  distances: PublicShareDistance[];
 }): Promise<string> {
   const token = crypto.randomUUID();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   await setDoc(doc(db, "publicShares", token), {
-    dist: data.dist,
     athleteName: data.athleteName,
-    periods: data.periods,
+    distances: data.distances,
     createdAt: Timestamp.fromDate(now),
     expiresAt: Timestamp.fromDate(expiresAt),
   });
