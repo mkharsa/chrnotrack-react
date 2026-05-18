@@ -3,14 +3,92 @@ import {
   useListParticipants,
   useCreateParticipant,
   useDeleteParticipant,
+  useListSeries,
   getListParticipantsQueryKey,
+  type Series,
 } from "@/lib/firebase-api";
+import { formatTime } from "@/lib/time";
+import { format, parseISO } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, UserPlus, Users, Pencil, Check, X } from "lucide-react";
+import { Trash2, UserPlus, Users, Pencil, Check, X, ChevronDown, ChevronRight, TrendingDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+
+// ── Historique d'un athlète ───────────────────────────────────────────────────
+
+function AthleteHistory({ pid }: { pid: string }) {
+  const { data: allSeries, isLoading } = useListSeries();
+
+  if (isLoading) {
+    return <div className="px-4 py-3 animate-pulse space-y-2">{[1, 2].map(i => <div key={i} className="h-8 bg-muted rounded" />)}</div>;
+  }
+
+  // Toutes les entrées de cet athlète avec include = true
+  type Entry = { date: string; dist: string; timeMs: number };
+  const entries: Entry[] = [];
+  for (const series of (allSeries ?? [])) {
+    for (const e of series.entries) {
+      if (e.pid === pid && e.include) {
+        entries.push({ date: series.dateKey, dist: series.dist, timeMs: e.timeMs });
+      }
+    }
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="px-4 py-4 text-xs text-muted-foreground text-center border-t border-border">
+        Aucune performance enregistrée.
+      </div>
+    );
+  }
+
+  // Grouper par distance
+  const byDist = new Map<string, Entry[]>();
+  for (const e of entries) {
+    if (!byDist.has(e.dist)) byDist.set(e.dist, []);
+    byDist.get(e.dist)!.push(e);
+  }
+
+  // Trier les distances numériquement
+  const sortedDists = Array.from(byDist.keys()).sort((a, b) => Number(a) - Number(b));
+
+  return (
+    <div className="border-t border-border bg-muted/20">
+      {sortedDists.map(dist => {
+        const distEntries = byDist.get(dist)!.sort((a, b) => b.date.localeCompare(a.date));
+        const best = Math.min(...distEntries.map(e => e.timeMs));
+        return (
+          <div key={dist} className="border-b border-border last:border-b-0">
+            <div className="px-4 py-2 flex items-center justify-between bg-muted/30">
+              <span className="text-xs font-bold text-primary uppercase tracking-wider">{dist}m</span>
+              <div className="flex items-center gap-1 text-xs text-green-500 font-mono font-semibold">
+                <TrendingDown className="w-3 h-3" />
+                {formatTime(best)}
+              </div>
+            </div>
+            <div className="divide-y divide-border/50">
+              {distEntries.map((e, i) => (
+                <div key={i} className="px-4 py-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {format(parseISO(e.date), "d MMM yyyy", { locale: fr })}
+                  </span>
+                  <span className={`font-mono text-xs font-semibold tabular-nums ${e.timeMs === best ? "text-green-500" : ""}`}>
+                    {formatTime(e.timeMs)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Page Athlètes ─────────────────────────────────────────────────────────────
 
 export default function Athletes() {
   const { data: participants, isLoading } = useListParticipants();
@@ -18,6 +96,7 @@ export default function Athletes() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const createParticipant = useCreateParticipant();
   const deleteParticipant = useDeleteParticipant();
   const queryClient = useQueryClient();
@@ -73,30 +152,21 @@ export default function Athletes() {
 
   const toggleAll = () => {
     if (!participants) return;
-    if (selectedIds.size === participants.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(participants.map(p => p.id)));
-    }
+    if (selectedIds.size === participants.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(participants.map(p => p.id)));
   };
 
   const startEdit = (id: string, currentName: string) => {
     setEditingId(id);
     setEditValue(currentName);
+    setExpandedId(null);
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditValue("");
-  };
+  const cancelEdit = () => { setEditingId(null); setEditValue(""); };
 
-  // Note: the API doesn't have a PATCH /participants/:id yet — we simulate rename
-  // by deleting and recreating. For now we just show the edit UI and note it.
-  // If you want true rename, add a PATCH endpoint.
   const confirmEdit = (id: string, oldName: string) => {
     const trimmed = editValue.trim();
     if (!trimmed || trimmed === oldName) { cancelEdit(); return; }
-    // Delete old + create new
     deleteParticipant.mutate({ id }, {
       onSuccess: () => {
         createParticipant.mutate({ data: { name: trimmed } }, {
@@ -108,6 +178,10 @@ export default function Athletes() {
         });
       }
     });
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(prev => prev === id ? null : id);
   };
 
   const allSelected = (participants?.length ?? 0) > 0 && selectedIds.size === (participants?.length ?? 0);
@@ -140,9 +214,7 @@ export default function Athletes() {
         {/* Liste */}
         {isLoading ? (
           <div className="animate-pulse space-y-3">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-14 bg-card rounded-lg" />
-            ))}
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-card rounded-lg" />)}
           </div>
         ) : participants?.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
@@ -155,85 +227,99 @@ export default function Athletes() {
         ) : (
           <div className="space-y-2 pb-20">
             {/* Tout sélectionner */}
-            <div className="flex items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <div
+              className="flex items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
+              onClick={toggleAll}
+            >
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} className="mr-4" />
               <span>Tout sélectionner</span>
             </div>
 
             {participants?.map(p => (
-              <div
-                key={p.id}
-                className={`bg-card border rounded-lg px-4 py-3 flex items-center gap-3 transition-colors ${
-                  selectedIds.has(p.id) ? "border-primary/40 bg-primary/5" : "border-card-border"
-                }`}
-              >
-                <Checkbox
-                  checked={selectedIds.has(p.id)}
-                  onCheckedChange={() => toggleSelect(p.id)}
-                  className="shrink-0"
-                />
-
-                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                  {p.name.charAt(0).toUpperCase()}
-                </div>
-
-                {editingId === p.id ? (
-                  <div className="flex-1 flex items-center gap-2">
-                    <Input
-                      value={editValue}
-                      onChange={e => setEditValue(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") confirmEdit(p.id, p.name);
-                        if (e.key === "Escape") cancelEdit();
-                      }}
-                      className="h-8 text-sm flex-1"
-                      autoFocus
+              <div key={p.id} className={`bg-card border rounded-xl overflow-hidden transition-colors ${
+                selectedIds.has(p.id) ? "border-primary/40" : "border-border"
+              }`}>
+                {/* Ligne principale */}
+                <div
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                    selectedIds.has(p.id) ? "bg-primary/5" : "hover:bg-muted/30"
+                  }`}
+                  onClick={() => editingId !== p.id && toggleExpand(p.id)}
+                >
+                  <div onClick={e => { e.stopPropagation(); toggleSelect(p.id); }}>
+                    <Checkbox
+                      checked={selectedIds.has(p.id)}
+                      onCheckedChange={() => toggleSelect(p.id)}
+                      className="shrink-0"
                     />
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary" onClick={() => confirmEdit(p.id, p.name)}>
-                      <Check className="w-4 h-4" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground" onClick={cancelEdit}>
-                      <X className="w-4 h-4" />
-                    </Button>
                   </div>
-                ) : (
-                  <>
-                    <span className="font-medium flex-1">{p.name}</span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => startEdit(p.id, p.name)}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
+
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
+
+                  {editingId === p.id ? (
+                    <div className="flex-1 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                      <Input
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") confirmEdit(p.id, p.name);
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        className="h-8 text-sm flex-1"
+                        autoFocus
+                      />
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary" onClick={() => confirmEdit(p.id, p.name)}>
+                        <Check className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDeleteOne(p.id, p.name)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground" onClick={cancelEdit}>
+                        <X className="w-4 h-4" />
                       </Button>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <span className="font-medium flex-1">{p.name}</span>
+                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => startEdit(p.id, p.name)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteOne(p.id, p.name)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      {expandedId === p.id
+                        ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                        : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      }
+                    </>
+                  )}
+                </div>
+
+                {/* Historique dépliant */}
+                {expandedId === p.id && <AthleteHistory pid={p.id} />}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Barre d'action groupée */}
+      {/* Barre suppression */}
       {selectedIds.size > 0 && (
         <div className="absolute bottom-4 left-4 right-4 bg-destructive text-destructive-foreground rounded-lg p-3 flex justify-between items-center shadow-lg animate-in slide-in-from-bottom-5">
           <span className="text-sm font-medium">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
           </span>
           <Button
-            variant="ghost"
-            size="sm"
+            variant="ghost" size="sm"
             className="hover:bg-destructive-foreground/20 text-white"
             onClick={handleBulkDelete}
             disabled={deleteParticipant.isPending}

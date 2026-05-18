@@ -168,24 +168,47 @@ function ListView({
       {/* Sections dépliantes */}
       {groups.map(group => {
         const isOpen = openGroups.has(group.label);
+        const groupIds = group.sessions.map(s => s.id);
+        const allGroupSelected = groupIds.every(id => selectedIds.has(id));
+        const someGroupSelected = groupIds.some(id => selectedIds.has(id));
+
+        const toggleGroupSelect = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          if (allGroupSelected) {
+            groupIds.forEach(id => { if (selectedIds.has(id)) onToggle(id); });
+          } else {
+            groupIds.forEach(id => { if (!selectedIds.has(id)) onToggle(id); });
+          }
+        };
+
         return (
           <div key={group.label} className="bg-card border border-border rounded-xl overflow-hidden">
-            {/* En-tête cliquable */}
-            <button
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors"
-              onClick={() => toggleGroup(group.label)}
-            >
-              <span className="text-sm font-semibold capitalize">{group.label}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  {group.sessions.length}
-                </span>
-                {isOpen
-                  ? <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform" />
-                  : <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform" />
-                }
+            {/* En-tête */}
+            <div className="flex items-center px-4 py-3 hover:bg-muted/40 transition-colors">
+              <div className="mr-3 shrink-0" onClick={toggleGroupSelect}>
+                <Checkbox
+                  checked={allGroupSelected}
+                  data-state={someGroupSelected && !allGroupSelected ? "indeterminate" : undefined}
+                  onCheckedChange={() => {}}
+                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
               </div>
-            </button>
+              <button
+                className="flex-1 flex items-center justify-between"
+                onClick={() => toggleGroup(group.label)}
+              >
+                <span className="text-sm font-semibold capitalize">{group.label}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                    {group.sessions.length}
+                  </span>
+                  {isOpen
+                    ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    : <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  }
+                </div>
+              </button>
+            </div>
 
             {/* Contenu dépliant */}
             {isOpen && (
@@ -193,18 +216,17 @@ function ListView({
                 {group.sessions.map(s => (
                   <div
                     key={s.id}
-                    className={`group flex items-center px-4 py-3 cursor-pointer transition-colors ${
+                    className={`flex items-center px-4 py-3 cursor-pointer transition-colors select-none ${
                       selectedIds.has(s.id) ? "bg-primary/5" : "hover:bg-muted/30"
                     }`}
-                    onClick={() => onNavigate(s.id)}
+                    onClick={() => onToggle(s.id)}
                   >
-                    <div className="mr-3 shrink-0" onClick={e => { e.stopPropagation(); onToggle(s.id); }}>
-                      <Checkbox
-                        checked={selectedIds.has(s.id)}
-                        onCheckedChange={() => onToggle(s.id)}
-                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                      />
-                    </div>
+                    <Checkbox
+                      checked={selectedIds.has(s.id)}
+                      onCheckedChange={() => onToggle(s.id)}
+                      className="mr-3 shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                      onClick={e => e.stopPropagation()}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between">
                         <span className="font-semibold truncate">{s.name}</span>
@@ -222,7 +244,12 @@ function ListView({
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground ml-3 shrink-0 group-hover:text-primary transition-colors" />
+                    <button
+                      className="ml-3 p-1.5 rounded-lg hover:bg-primary/10 shrink-0 transition-colors"
+                      onClick={e => { e.stopPropagation(); onNavigate(s.id); }}
+                    >
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </button>
                   </div>
                 ))}
               </div>
