@@ -41,7 +41,13 @@ jobs:
         run: cd artifacts/chronotrack/android && ./gradlew assembleDebug --no-daemon
 
       - name: Print debug keystore SHA-1
-        run: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -A1 "SHA1:"
+        run: |
+          SHA1=$(keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep "SHA1:" | awk '{print $2}')
+          echo "### 🔑 Debug Keystore SHA-1" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$SHA1" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "SHA1=$SHA1"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
