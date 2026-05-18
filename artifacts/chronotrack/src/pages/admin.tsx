@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Users, Timer, Activity, TrendingUp, Lock, BarChart2 } from "lucide-react";
+import { Users, Timer, Activity, TrendingUp, Lock, BarChart2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getAdminStats, getAdminUsers } from "@/lib/admin-tracking";
+import { getAdminData, type AdminStats, type AdminUser } from "@/lib/admin-tracking";
 
 const SESSION_KEY = "ct_admin_auth";
 const ADMIN_PWD = "aboudi";
@@ -14,19 +14,6 @@ function fmt(ts: { seconds: number } | null | undefined): string {
   });
 }
 
-type Stats = {
-  userCount?: number;
-  totalSessions?: number;
-  totalSeries?: number;
-  logins?: Record<string, number>;
-};
-
-type AdminUser = {
-  uid: string;
-  firstSeen?: { seconds: number };
-  lastSeen?: { seconds: number };
-};
-
 function last14Days(): string[] {
   return Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
@@ -35,20 +22,22 @@ function last14Days(): string[] {
   });
 }
 
-function StatCard({ icon: Icon, label, value, color }: {
+function StatCard({ icon: Icon, label, value, color, note }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string | number;
   color: string;
+  note?: string;
 }) {
   return (
     <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
         <Icon className="w-5 h-5" />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-2xl font-bold">{value}</p>
+        {note && <p className="text-[10px] text-muted-foreground mt-0.5">{note}</p>}
       </div>
     </div>
   );
@@ -57,29 +46,34 @@ function StatCard({ icon: Icon, label, value, color }: {
 export default function Admin() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem(SESSION_KEY) === "1");
   const [pwd, setPwd] = useState("");
-  const [err, setErr] = useState(false);
-  const [stats, setStats] = useState<Stats>({});
+  const [pwdErr, setPwdErr] = useState(false);
+
+  const [stats, setStats] = useState<AdminStats>({});
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    getAdminData()
+      .then(({ stats: s, users: u }) => { setStats(s); setUsers(u); })
+      .catch(e => setError(e?.message ?? "Erreur de chargement. Vérifiez les règles Firestore."))
+      .finally(() => setLoading(false));
+  };
 
   const login = () => {
     if (pwd === ADMIN_PWD) {
       sessionStorage.setItem(SESSION_KEY, "1");
       setAuthed(true);
-      setErr(false);
+      setPwdErr(false);
     } else {
-      setErr(true);
+      setPwdErr(true);
       setPwd("");
     }
   };
 
-  useEffect(() => {
-    if (!authed) return;
-    setLoading(true);
-    Promise.all([getAdminStats(), getAdminUsers()])
-      .then(([s, u]) => { setStats(s as Stats); setUsers(u as AdminUser[]); })
-      .finally(() => setLoading(false));
-  }, [authed]);
+  useEffect(() => { if (authed) load(); }, [authed]);
 
   if (!authed) {
     return (
@@ -96,11 +90,12 @@ export default function Admin() {
             type="password"
             placeholder="Mot de passe"
             value={pwd}
-            onChange={e => { setPwd(e.target.value); setErr(false); }}
+            autoFocus
+            onChange={e => { setPwd(e.target.value); setPwdErr(false); }}
             onKeyDown={e => e.key === "Enter" && pwd && login()}
-            className={err ? "border-destructive" : ""}
+            className={pwdErr ? "border-destructive" : ""}
           />
-          {err && <p className="text-xs text-destructive">Mot de passe incorrect.</p>}
+          {pwdErr && <p className="text-xs text-destructive">Mot de passe incorrect.</p>}
           <Button className="w-full" onClick={login} disabled={!pwd}>Connexion</Button>
         </div>
       </div>
@@ -109,66 +104,118 @@ export default function Admin() {
 
   const days = last14Days();
   const loginMax = Math.max(1, ...days.map(d => stats.logins?.[d] ?? 0));
+  const totalLogins14d = days.reduce((acc, d) => acc + (stats.logins?.[d] ?? 0), 0);
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
+    <div className="min-h-screen bg-background p-4 md:p-8 max-w-4xl mx-auto space-y-6">
 
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <BarChart2 className="w-6 h-6 text-primary" />
-        <h1 className="text-2xl font-bold">Tableau de bord admin</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <BarChart2 className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold">Tableau de bord</h1>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          Actualiser
+        </button>
       </div>
 
+      {error && (
+        <div className="flex items-start gap-3 bg-destructive/10 border border-destructive/20 rounded-xl p-4">
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-destructive">Impossible de charger les données</p>
+            <p className="text-xs text-muted-foreground">{error}</p>
+            <p className="text-xs text-muted-foreground">
+              Vérifiez que les règles Firestore sont bien déployées dans la Firebase Console.
+            </p>
+          </div>
+        </div>
+      )}
+
       {loading ? (
-        <div className="text-sm text-muted-foreground animate-pulse">Chargement des données…</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-card border border-border rounded-xl p-4 h-24 animate-pulse" />
+          ))}
+        </div>
       ) : (
         <>
-          {/* Stat cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <StatCard icon={Users} label="Utilisateurs uniques" value={stats.userCount ?? 0} color="bg-blue-500/10 text-blue-500" />
-            <StatCard icon={Timer} label="Sessions créées" value={stats.totalSessions ?? 0} color="bg-purple-500/10 text-purple-500" />
-            <StatCard icon={Activity} label="Séries enregistrées" value={stats.totalSeries ?? 0} color="bg-emerald-500/10 text-emerald-500" />
-            <StatCard icon={TrendingUp} label="Connexions (14j)" value={days.reduce((acc, d) => acc + (stats.logins?.[d] ?? 0), 0)} color="bg-orange-500/10 text-orange-500" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard
+              icon={Users}
+              label="Utilisateurs"
+              value={users.length}
+              color="bg-blue-500/10 text-blue-500"
+            />
+            <StatCard
+              icon={Timer}
+              label="Sessions créées"
+              value={stats.totalSessions ?? 0}
+              color="bg-purple-500/10 text-purple-500"
+              note="depuis le déploiement"
+            />
+            <StatCard
+              icon={Activity}
+              label="Séries enregistrées"
+              value={stats.totalSeries ?? 0}
+              color="bg-emerald-500/10 text-emerald-500"
+              note="depuis le déploiement"
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="Connexions (14j)"
+              value={totalLogins14d}
+              color="bg-orange-500/10 text-orange-500"
+            />
           </div>
 
-          {/* Login bar chart */}
+          {/* Graphique connexions */}
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <p className="text-sm font-semibold">Connexions — 14 derniers jours</p>
-            <div className="flex items-end gap-1 h-24">
+            <div className="flex items-end gap-1 h-28">
               {days.map(day => {
                 const count = stats.logins?.[day] ?? 0;
                 const pct = Math.round((count / loginMax) * 100);
-                const label = day.slice(5); // MM-DD
+                const label = day.slice(5).replace("-", "/");
                 return (
                   <div key={day} className="flex-1 flex flex-col items-center gap-1 group">
-                    <span className="text-[9px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">{count}</span>
+                    <span className="text-[9px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">{count || ""}</span>
                     <div
-                      className="w-full rounded-t-sm bg-primary/70 transition-all"
-                      style={{ height: `${Math.max(2, pct)}%` }}
+                      className="w-full rounded-t bg-primary/70 hover:bg-primary transition-colors"
+                      style={{ height: `${Math.max(3, pct)}%` }}
                     />
-                    <span className="text-[8px] text-muted-foreground rotate-0 leading-none">{label}</span>
+                    <span className="text-[8px] text-muted-foreground leading-none">{label}</span>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Users table */}
+          {/* Tableau utilisateurs */}
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
-              <p className="text-sm font-semibold">Utilisateurs ({users.length})</p>
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <p className="text-sm font-semibold">Utilisateurs enregistrés</p>
+              <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">{users.length}</span>
             </div>
             {users.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">Aucun utilisateur encore enregistré.</p>
+              <p className="p-4 text-sm text-muted-foreground">
+                Aucun utilisateur. Les utilisateurs apparaissent ici après leur prochaine connexion.
+              </p>
             ) : (
               <div className="divide-y divide-border">
                 {users.map((u, i) => (
                   <div key={u.uid} className="flex items-center gap-3 px-4 py-3 text-sm">
-                    <span className="text-muted-foreground w-5 text-right shrink-0">{i + 1}</span>
+                    <span className="text-muted-foreground w-5 text-right shrink-0 text-xs">{i + 1}</span>
                     <span className="font-mono text-xs text-muted-foreground truncate flex-1">{u.uid}</span>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      Vu le {fmt(u.lastSeen)}
-                    </span>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-muted-foreground">1ère fois {fmt(u.firstSeen)}</p>
+                      <p className="text-xs text-muted-foreground">Dernier accès {fmt(u.lastSeen)}</p>
+                    </div>
                   </div>
                 ))}
               </div>
