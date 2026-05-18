@@ -2,11 +2,12 @@ import { useState } from "react";
 import {
   signInWithPopup, GoogleAuthProvider,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Clock, Mail, Eye, EyeOff } from "lucide-react";
+import { Clock, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -18,7 +19,6 @@ function GoogleIcon() {
     </svg>
   );
 }
-
 
 const AUTH_ERRORS: Record<string, string> = {
   "auth/wrong-password": "Mot de passe incorrect.",
@@ -32,11 +32,12 @@ const AUTH_ERRORS: Record<string, string> = {
 };
 
 export default function Login() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleError = (e: unknown) => {
@@ -64,11 +65,79 @@ export default function Login() {
     }
   };
 
+  const handleReset = async () => {
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccess("Un email de réinitialisation a été envoyé.");
+    } catch (e) {
+      handleError(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchMode = (next: "signin" | "signup" | "reset") => {
+    setMode(next);
+    setError(null);
+    setSuccess(null);
+  };
+
+  if (mode === "reset") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center space-y-2 mb-2">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-3">
+              <Clock className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight uppercase">ChronoTrack</h1>
+            <p className="text-sm text-muted-foreground">Réinitialiser le mot de passe</p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="email"
+                placeholder="Votre adresse email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !loading && email && handleReset()}
+                className="pl-9"
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
+            )}
+            {success && (
+              <p className="text-xs text-green-600 bg-green-500/10 px-3 py-2 rounded-lg">{success}</p>
+            )}
+
+            <Button className="w-full" onClick={handleReset} disabled={!email || loading}>
+              {loading ? "..." : "Envoyer le lien"}
+            </Button>
+          </div>
+
+          <button
+            onClick={() => switchMode("signin")}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mx-auto"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour à la connexion
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
 
-        {/* Logo */}
         <div className="text-center space-y-2 mb-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-3">
             <Clock className="w-8 h-8 text-primary" />
@@ -79,7 +148,6 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Boutons sociaux */}
         <div className="space-y-3">
           <button
             onClick={handleGoogle}
@@ -90,14 +158,12 @@ export default function Login() {
           </button>
         </div>
 
-        {/* Séparateur */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-border" />
           <span className="text-xs text-muted-foreground uppercase tracking-wider">ou</span>
           <div className="flex-1 h-px bg-border" />
         </div>
 
-        {/* Email / mot de passe */}
         <div className="space-y-3">
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -127,6 +193,17 @@ export default function Login() {
             </button>
           </div>
 
+          {mode === "signin" && (
+            <div className="text-right">
+              <button
+                onClick={() => switchMode("reset")}
+                className="text-xs text-muted-foreground hover:text-primary"
+              >
+                Mot de passe oublié ?
+              </button>
+            </div>
+          )}
+
           {error && (
             <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
           )}
@@ -140,11 +217,10 @@ export default function Login() {
           </Button>
         </div>
 
-        {/* Toggle mode */}
         <p className="text-center text-sm text-muted-foreground">
           {mode === "signin" ? "Pas encore de compte ? " : "Déjà un compte ? "}
           <button
-            onClick={() => { setMode(m => m === "signin" ? "signup" : "signin"); setError(null); }}
+            onClick={() => switchMode(mode === "signin" ? "signup" : "signin")}
             className="text-primary font-semibold hover:underline"
           >
             {mode === "signin" ? "Créer un compte" : "Se connecter"}
