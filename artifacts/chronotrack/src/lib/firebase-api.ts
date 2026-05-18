@@ -401,14 +401,21 @@ export function useListDistances() {
 
 // ─── Training ─────────────────────────────────────────────────────────────────
 
-export type TrainingEntry = {
+export type TrainingExercise = {
+  id: string;
+  name: string;
+  needsChrono: boolean;
+  dist?: string | null;
+  sessionId?: string | null;
+};
+
+export type TrainingPlan = {
   id: string;
   date: string;
   title: string;
   notes?: string | null;
-  needsChrono: boolean;
-  dist?: string | null;
-  sessionId?: string | null;
+  participantIds: string[];
+  exercises: TrainingExercise[];
 };
 
 export const getListTrainingQueryKey = () => ["training"] as const;
@@ -416,7 +423,7 @@ export const getListTrainingQueryKey = () => ["training"] as const;
 export function useListTraining() {
   return useQuery({
     queryKey: getListTrainingQueryKey(),
-    queryFn: async (): Promise<TrainingEntry[]> => {
+    queryFn: async (): Promise<TrainingPlan[]> => {
       const snap = await getDocs(userCol("training"));
       return snap.docs
         .map(d => {
@@ -426,9 +433,8 @@ export function useListTraining() {
             date: data.date as string,
             title: data.title as string,
             notes: (data.notes as string | null) ?? null,
-            needsChrono: (data.needsChrono as boolean) ?? false,
-            dist: (data.dist as string | null) ?? null,
-            sessionId: (data.sessionId as string | null) ?? null,
+            participantIds: (data.participantIds as string[]) ?? [],
+            exercises: (data.exercises as TrainingExercise[]) ?? [],
           };
         })
         .sort((a, b) => b.date.localeCompare(a.date));
@@ -436,10 +442,10 @@ export function useListTraining() {
   });
 }
 
-export function useCreateTrainingEntry() {
+export function useCreateTrainingPlan() {
   return useMutation({
     mutationFn: async ({ data }: {
-      data: Omit<TrainingEntry, "id">;
+      data: Omit<TrainingPlan, "id">;
     }): Promise<{ id: string }> => {
       const ref = await addDoc(userCol("training"), {
         ...data,
@@ -450,18 +456,18 @@ export function useCreateTrainingEntry() {
   });
 }
 
-export function useUpdateTrainingEntry() {
+export function useUpdateTrainingPlan() {
   return useMutation({
     mutationFn: async ({ id, data }: {
       id: string;
-      data: Partial<Omit<TrainingEntry, "id">>;
+      data: Partial<Omit<TrainingPlan, "id">>;
     }): Promise<void> => {
       await updateDoc(userDocRef("training", id), data);
     },
   });
 }
 
-export function useDeleteTrainingEntry() {
+export function useDeleteTrainingPlan() {
   return useMutation({
     mutationFn: async ({ id }: { id: string }): Promise<void> => {
       await deleteDoc(userDocRef("training", id));
