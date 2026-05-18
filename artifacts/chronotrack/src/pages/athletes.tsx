@@ -26,7 +26,6 @@ function AthleteHistory({ pid }: { pid: string }) {
     return <div className="px-4 py-3 animate-pulse space-y-2">{[1, 2].map(i => <div key={i} className="h-8 bg-muted rounded" />)}</div>;
   }
 
-  // Toutes les entrées de cet athlète avec include = true
   type Entry = { date: string; dist: string; timeMs: number };
   const entries: Entry[] = [];
   for (const series of (allSeries ?? [])) {
@@ -45,41 +44,61 @@ function AthleteHistory({ pid }: { pid: string }) {
     );
   }
 
-  // Grouper par distance
   const byDist = new Map<string, Entry[]>();
   for (const e of entries) {
     if (!byDist.has(e.dist)) byDist.set(e.dist, []);
     byDist.get(e.dist)!.push(e);
   }
 
-  // Trier les distances numériquement
   const sortedDists = Array.from(byDist.keys()).sort((a, b) => Number(a) - Number(b));
 
   return (
     <div className="border-t border-border bg-muted/20">
       {sortedDists.map(dist => {
-        const distEntries = byDist.get(dist)!.sort((a, b) => b.date.localeCompare(a.date));
-        const best = Math.min(...distEntries.map(e => e.timeMs));
+        const all = byDist.get(dist)!.sort((a, b) => a.timeMs - b.timeMs);
+        const best = all[0].timeMs;
+        const worst = all[all.length - 1].timeMs;
+
+        // 5 meilleurs + le pire (si pas déjà dans le top 5)
+        const top5 = all.slice(0, 5);
+        const worstEntry = all[all.length - 1];
+        const showWorst = all.length > 5;
+        const displayed = showWorst ? [...top5, worstEntry] : top5;
+
         return (
           <div key={dist} className="border-b border-border last:border-b-0">
             <div className="px-4 py-2 flex items-center justify-between bg-muted/30">
               <span className="text-xs font-bold text-primary uppercase tracking-wider">{dist}m</span>
-              <div className="flex items-center gap-1 text-xs text-green-500 font-mono font-semibold">
-                <TrendingDown className="w-3 h-3" />
-                {formatTime(best)}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{all.length} essai{all.length > 1 ? "s" : ""}</span>
+                <div className="flex items-center gap-1 text-green-500 font-mono font-semibold">
+                  <TrendingDown className="w-3 h-3" />
+                  {formatTime(best)}
+                </div>
               </div>
             </div>
             <div className="divide-y divide-border/50">
-              {distEntries.map((e, i) => (
-                <div key={i} className="px-4 py-2 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    {format(parseISO(e.date), "d MMM yyyy", { locale: fr })}
-                  </span>
-                  <span className={`font-mono text-xs font-semibold tabular-nums ${e.timeMs === best ? "text-green-500" : ""}`}>
-                    {formatTime(e.timeMs)}
-                  </span>
-                </div>
-              ))}
+              {displayed.map((e, i) => {
+                const isWorstRow = showWorst && i === displayed.length - 1;
+                const isBest = e.timeMs === best;
+                return (
+                  <div key={i} className={`px-4 py-2 flex items-center justify-between ${isWorstRow ? "bg-red-500/5" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      {isWorstRow && <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">pire</span>}
+                      {isBest && <span className="text-[10px] font-bold text-green-500 uppercase tracking-wider">meilleur</span>}
+                      {!isWorstRow && !isBest && <span className="text-[10px] text-muted-foreground w-10">#{i + 1}</span>}
+                    </div>
+                    <span className="text-xs text-muted-foreground flex-1 ml-2">
+                      {format(parseISO(e.date), "d MMM yyyy", { locale: fr })}
+                    </span>
+                    <span className={`font-mono text-sm font-bold tabular-nums ${
+                      isBest ? "text-green-500" : isWorstRow ? "text-red-400" : ""
+                    }`}>
+                      {formatTime(e.timeMs)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
