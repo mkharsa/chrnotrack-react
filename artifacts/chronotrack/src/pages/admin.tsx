@@ -9,15 +9,15 @@ const ADMIN_PWD = "aboudi";
 
 function fmtFirestore(ts: { seconds: number } | null | undefined): string {
   if (!ts?.seconds) return "";
-  return new Date(ts.seconds * 1000).toLocaleDateString("fr-FR", {
-    day: "2-digit", month: "short", year: "numeric",
+  return new Date(ts.seconds * 1000).toLocaleString("fr-FR", {
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
 
 function fmtISO(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("fr-FR", {
-    day: "2-digit", month: "short", year: "numeric",
+  return new Date(iso).toLocaleString("fr-FR", {
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
 
