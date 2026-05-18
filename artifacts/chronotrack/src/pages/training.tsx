@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   useListTraining, useCreateTrainingPlan, useUpdateTrainingPlan, useDeleteTrainingPlan,
-  useCreateSession, useListParticipants,
-  getListTrainingQueryKey, getListSessionsQueryKey,
+  useCreateSession, useListParticipants, useCreateParticipant,
+  getListTrainingQueryKey, getListSessionsQueryKey, getListParticipantsQueryKey,
   type TrainingPlan, type TrainingExercise,
 } from "@/lib/firebase-api";
 
@@ -32,15 +32,27 @@ function AddForm({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { data: participants = [] } = useListParticipants();
   const createPlan = useCreateTrainingPlan();
+  const createParticipant = useCreateParticipant();
 
   const [date, setDate] = useState(todayKey);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const [exercises, setExercises] = useState<DraftExercise[]>([newDraft()]);
+  const [newAthleteName, setNewAthleteName] = useState("");
+  const [showNewAthlete, setShowNewAthlete] = useState(false);
 
   const togglePid = (id: string) =>
     setSelectedPids(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const handleAddAthlete = async () => {
+    if (!newAthleteName.trim()) return;
+    const result = await createParticipant.mutateAsync({ data: { name: newAthleteName.trim() } });
+    qc.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
+    setSelectedPids(prev => new Set(prev).add(result.id));
+    setNewAthleteName("");
+    setShowNewAthlete(false);
+  };
 
   const updateEx = (id: string, patch: Partial<DraftExercise>) =>
     setExercises(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
@@ -98,28 +110,57 @@ function AddForm({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Athlètes */}
-      {participants.length > 0 && (
-        <div>
-          <label className="text-xs text-muted-foreground mb-2 block flex items-center gap-1">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs text-muted-foreground flex items-center gap-1">
             <Users className="w-3.5 h-3.5" /> Athlètes
           </label>
-          <div className="flex flex-wrap gap-2">
-            {participants.map(p => (
-              <button
-                key={p.id}
-                onClick={() => togglePid(p.id)}
-                className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-                  selectedPids.has(p.id)
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                }`}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => setShowNewAthlete(v => !v)}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <Plus className="w-3 h-3" /> Nouvel athlète
+          </button>
         </div>
-      )}
+
+        {showNewAthlete && (
+          <div className="flex gap-2 mb-2">
+            <Input
+              placeholder="Nom de l'athlète"
+              value={newAthleteName}
+              onChange={e => setNewAthleteName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleAddAthlete()}
+              className="flex-1 h-8 text-sm"
+              autoFocus
+            />
+            <Button size="sm" className="h-8 px-3" onClick={handleAddAthlete} disabled={!newAthleteName.trim() || createParticipant.isPending}>
+              {createParticipant.isPending ? "…" : "Ajouter"}
+            </Button>
+            <button onClick={() => { setShowNewAthlete(false); setNewAthleteName(""); }} className="text-muted-foreground hover:text-foreground px-1">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {participants.map(p => (
+            <button
+              key={p.id}
+              onClick={() => togglePid(p.id)}
+              className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                selectedPids.has(p.id)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border text-muted-foreground hover:border-primary/50"
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+          {participants.length === 0 && !showNewAthlete && (
+            <span className="text-xs text-muted-foreground italic">Aucun athlète — créez-en un ci-dessus</span>
+          )}
+        </div>
+      </div>
 
       {/* Exercices */}
       <div>
