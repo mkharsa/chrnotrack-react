@@ -104,7 +104,7 @@ function SessionCard({
 // ── Vue liste ──────────────────────────────────────────────────────────────────
 
 function ListView({
-  sessions, selectedIds, onToggle, onToggleAll, onNavigate, selectionMode, onToggleSelectionMode,
+  sessions, selectedIds, onToggle, onToggleAll, onNavigate, selectionMode, onToggleSelectionMode, onDelete,
 }: {
   sessions: Session[];
   selectedIds: Set<string>;
@@ -113,6 +113,7 @@ function ListView({
   onNavigate: (id: string) => void;
   selectionMode: boolean;
   onToggleSelectionMode: () => void;
+  onDelete: () => void;
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
   const groups = groupSessions(sessions, groupBy);
@@ -149,6 +150,15 @@ function ListView({
         ) : <div />}
 
         <div className="flex items-center gap-2">
+          {selectionMode && selectedIds.size > 0 && (
+            <button
+              onClick={onDelete}
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {selectedIds.size}
+            </button>
+          )}
           <button
             onClick={onToggleSelectionMode}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
@@ -530,28 +540,13 @@ export default function Sessions() {
             onNavigate={navigateTo}
             selectionMode={selectionMode}
             onToggleSelectionMode={toggleSelectionMode}
+            onDelete={handleDelete}
           />
         ) : (
           <SessionsCalendarView sessions={sessions ?? []} onNavigate={navigateTo} />
         )}
       </div>
 
-      {selectedIds.size > 0 && selectionMode && viewMode === "list" && (
-        <div className="shrink-0 bg-destructive/95 text-destructive-foreground px-4 py-3 flex justify-between items-center shadow-lg">
-          <span className="text-sm font-medium">
-            {selectedIds.size} sélectionnée{selectedIds.size > 1 ? "s" : ""}
-          </span>
-          <Button
-            variant="ghost" size="sm"
-            className="hover:bg-white/20 text-white font-semibold"
-            onClick={handleDelete}
-            disabled={bulkDelete.isPending}
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Supprimer
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

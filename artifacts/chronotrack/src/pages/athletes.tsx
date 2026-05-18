@@ -259,16 +259,28 @@ export default function Athletes() {
                 </div>
               ) : <div />}
 
-              <button
-                onClick={toggleSelectionMode}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                  selectionMode
-                    ? "text-primary bg-primary/10 hover:bg-primary/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                {selectionMode ? "Annuler" : "Sélectionner"}
-              </button>
+              <div className="flex items-center gap-2">
+                {selectionMode && selectedIds.size > 0 && (
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={deleteParticipant.isPending}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {selectedIds.size}
+                  </button>
+                )}
+                <button
+                  onClick={toggleSelectionMode}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                    selectionMode
+                      ? "text-primary bg-primary/10 hover:bg-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {selectionMode ? "Annuler" : "Sélectionner"}
+                </button>
+              </div>
             </div>
 
             {participants?.map(p => (
@@ -360,23 +372,6 @@ export default function Athletes() {
         )}
       </div>
 
-      {/* Barre suppression */}
-      {selectedIds.size > 0 && selectionMode && (
-        <div className="absolute bottom-4 left-4 right-4 bg-destructive text-destructive-foreground rounded-lg p-3 flex justify-between items-center shadow-lg animate-in slide-in-from-bottom-5">
-          <span className="text-sm font-medium">
-            {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
-          </span>
-          <Button
-            variant="ghost" size="sm"
-            className="hover:bg-destructive-foreground/20 text-white"
-            onClick={handleBulkDelete}
-            disabled={deleteParticipant.isPending}
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Supprimer
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
