@@ -19,6 +19,21 @@ function userDocRef(collName: string, docId: string): DocumentReference {
   return doc(db, "users", uid(), collName, docId);
 }
 
+// ─── Input validation ─────────────────────────────────────────────────────────
+
+const LIMITS = { name: 100, dist: 20, notes: 2000, title: 150 };
+
+function sanitize(val: string, max: number): string {
+  const trimmed = val.trim().slice(0, max);
+  if (!trimmed) throw new Error("Champ requis vide.");
+  return trimmed;
+}
+
+function sanitizeOpt(val: string | null | undefined, max: number): string | null {
+  if (!val) return null;
+  return val.trim().slice(0, max) || null;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type Participant = { id: string; name: string };
@@ -80,11 +95,9 @@ export function useListParticipants() {
 export function useCreateParticipant() {
   return useMutation({
     mutationFn: async ({ data }: { data: { name: string } }): Promise<Participant> => {
-      const ref = await addDoc(userCol("participants"), {
-        name: data.name,
-        createdAt: serverTimestamp(),
-      });
-      return { id: ref.id, name: data.name };
+      const name = sanitize(data.name, LIMITS.name);
+      const ref = await addDoc(userCol("participants"), { name, createdAt: serverTimestamp() });
+      return { id: ref.id, name };
     },
   });
 }
@@ -100,7 +113,8 @@ export function useDeleteParticipant() {
 export function useUpdateParticipant() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: { name: string } }): Promise<void> => {
-      await updateDoc(userDocRef("participants", id), { name: data.name });
+      const name = sanitize(data.name, LIMITS.name);
+      await updateDoc(userDocRef("participants", id), { name });
     },
   });
 }
@@ -146,9 +160,9 @@ export function useCreateSession() {
         }
       }
       const ref = await addDoc(userCol("sessions"), {
-        name: data.name,
+        name: sanitize(data.name, LIMITS.title),
         date: data.date,
-        defaultDist: data.defaultDist ?? null,
+        defaultDist: sanitizeOpt(data.defaultDist ?? null, LIMITS.dist),
         participants,
         createdAt: serverTimestamp(),
       });
@@ -448,7 +462,15 @@ export function useCreateTrainingPlan() {
       data: Omit<TrainingPlan, "id">;
     }): Promise<{ id: string }> => {
       const ref = await addDoc(userCol("training"), {
-        ...data,
+        date: data.date,
+        title: sanitize(data.title, LIMITS.title),
+        notes: sanitizeOpt(data.notes, LIMITS.notes),
+        participantIds: data.participantIds.slice(0, 200),
+        exercises: data.exercises.slice(0, 50).map(e => ({
+          ...e,
+          name: e.name.trim().slice(0, LIMITS.title),
+          dist: sanitizeOpt(e.dist, LIMITS.dist),
+        })),
         createdAt: serverTimestamp(),
       });
       return { id: ref.id };

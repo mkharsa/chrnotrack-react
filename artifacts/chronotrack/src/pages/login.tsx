@@ -31,6 +31,9 @@ const AUTH_ERRORS: Record<string, string> = {
   "auth/cancelled-popup-request": "",
 };
 
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000;
+
 export default function Login() {
   const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [email, setEmail] = useState("");
@@ -39,11 +42,21 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+
+  const isLocked = lockedUntil !== null && Date.now() < lockedUntil;
+  const lockRemaining = lockedUntil ? Math.ceil((lockedUntil - Date.now()) / 60000) : 0;
 
   const handleError = (e: unknown) => {
     const code = (e as { code?: string }).code ?? "";
     const msg = AUTH_ERRORS[code] ?? (e as Error).message;
-    if (msg) setError(msg);
+    if (msg) {
+      setError(msg);
+      const next = attempts + 1;
+      setAttempts(next);
+      if (next >= MAX_ATTEMPTS) setLockedUntil(Date.now() + LOCKOUT_MS);
+    }
   };
 
   const handleGoogle = async () => {
@@ -53,11 +66,14 @@ export default function Login() {
   };
 
   const handleEmail = async () => {
+    if (isLocked) { setError(`Trop de tentatives. Réessayez dans ${lockRemaining} min.`); return; }
     setError(null);
     setLoading(true);
     try {
       if (mode === "signin") await signInWithEmailAndPassword(auth, email, password);
       else await createUserWithEmailAndPassword(auth, email, password);
+      setAttempts(0);
+      setLockedUntil(null);
     } catch (e) {
       handleError(e);
     } finally {
@@ -211,9 +227,9 @@ export default function Login() {
           <Button
             className="w-full"
             onClick={handleEmail}
-            disabled={!email || !password || loading}
+            disabled={!email || !password || loading || isLocked}
           >
-            {loading ? "..." : mode === "signin" ? "Se connecter" : "Créer un compte"}
+            {loading ? "..." : isLocked ? `Bloqué ${lockRemaining} min` : mode === "signin" ? "Se connecter" : "Créer un compte"}
           </Button>
         </div>
 
