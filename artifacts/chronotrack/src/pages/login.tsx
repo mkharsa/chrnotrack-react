@@ -185,21 +185,25 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="space-y-3">
-          <button
-            onClick={handleGoogle}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:bg-muted/50 transition-colors"
-          >
-            <GoogleIcon />
-            Continuer avec Google
-          </button>
-        </div>
+        {!isNative && (
+          <>
+            <div className="space-y-3">
+              <button
+                onClick={handleGoogle}
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                <GoogleIcon />
+                Continuer avec Google
+              </button>
+            </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-muted-foreground uppercase tracking-wider">ou</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground uppercase tracking-wider">ou</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+          </>
+        )}
 
         <div className="space-y-3">
           <div className="relative">
