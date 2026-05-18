@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Calendar as CalendarIcon, Clock, Dumbbell, LogOut, TrendingUp, Users } from "lucide-react";
+import { Activity, Calendar as CalendarIcon, Clock, Dumbbell, LogOut, Timer, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 
@@ -42,9 +42,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       <nav className="shrink-0 border-t border-border bg-card pb-safe">
-        <div className="flex h-16">
+        <div className="flex h-14">
           <NavItem href="/training" icon={<Dumbbell />} label="Entraînement" active={location.startsWith("/training")} />
           <NavItem href="/sessions" icon={<Activity />} label="Sessions" active={location === "/" || location.startsWith("/sessions")} />
+          <NavItem href="/free-chrono" icon={<Timer />} label="Chrono" active={location.startsWith("/free-chrono")} />
           <NavItem href="/athletes" icon={<Users />} label="Athlètes" active={location.startsWith("/athletes")} />
           <NavItem href="/calendar" icon={<CalendarIcon />} label="Calendrier" active={location.startsWith("/calendar")} />
           <NavItem href="/progression" icon={<TrendingUp />} label="Progression" active={location.startsWith("/progression")} />
@@ -56,11 +57,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
   return (
-    <Link href={href} className={`flex-1 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-      <div className={`p-1 rounded-full ${active ? "bg-primary/10" : ""}`}>
+    <Link href={href} className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+      <div className={`p-1 rounded-full [&>svg]:w-4 [&>svg]:h-4 ${active ? "bg-primary/10" : ""}`}>
         {icon}
       </div>
-      <span>{label}</span>
+      <span className="text-[10px] font-medium leading-tight">{label}</span>
     </Link>
   );
 }

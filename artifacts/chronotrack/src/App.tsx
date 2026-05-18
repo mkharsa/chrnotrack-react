@@ -11,6 +11,7 @@ import CalendarView from "@/pages/calendar";
 import Progression from "@/pages/progression";
 import Athletes from "@/pages/athletes";
 import Training from "@/pages/training";
+import FreeChrono from "@/pages/free-chrono";
 import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import { Clock } from "lucide-react";
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/calendar" component={CalendarView} />
         <Route path="/progression" component={Progression} />
         <Route path="/training" component={Training} />
+        <Route path="/free-chrono" component={FreeChrono} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
