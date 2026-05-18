@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from "firebase/auth";
 import { auth } from "./firebase";
+import { trackUserLogin } from "./admin-tracking";
 
 type AuthCtx = {
   user: User | null;
@@ -19,6 +20,7 @@ export function AuthProvider({ children, onUserChange }: { children: React.React
       setUser(u);
       setLoading(false);
       onUserChange?.(u?.uid ?? null);
+      if (u) trackUserLogin(u.uid);
     });
   }, []);
 

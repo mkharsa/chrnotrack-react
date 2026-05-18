@@ -5,6 +5,7 @@ import {
   CollectionReference, DocumentReference,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
+import { trackSessionCreated, trackSeriesCreated } from "./admin-tracking";
 
 function uid(): string {
   const u = auth.currentUser;
@@ -163,6 +164,7 @@ export function useCreateSession() {
         participants,
         createdAt: serverTimestamp(),
       });
+      trackSessionCreated();
       return { id: ref.id };
     },
   });
@@ -266,6 +268,7 @@ export function useCreateSeries() {
         ...data,
         createdAt: serverTimestamp(),
       });
+      trackSeriesCreated();
       return { id: ref.id };
     },
   });
