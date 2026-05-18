@@ -274,7 +274,7 @@ function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantN
                   </div>
                   {ex.needsChrono && ex.sessionId && (
                     <button
-                      onClick={() => navigate(`/sessions/${ex.sessionId}`)}
+                      onClick={() => navigate(`/sessions/${ex.sessionId}/chrono`)}
                       className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
                     >
                       <ExternalLink className="w-3 h-3" />
