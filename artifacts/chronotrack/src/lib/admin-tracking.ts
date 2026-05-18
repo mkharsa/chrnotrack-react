@@ -49,6 +49,8 @@ export type AdminStats = {
 export type AdminUser = {
   uid: string;
   email?: string | null;
+  displayName?: string | null;
+  provider?: string | null;
   firstSeen?: { seconds: number } | null;
   lastSeen?: { seconds: number } | null;
   createdAt?: string | null;
@@ -58,6 +60,8 @@ export type AdminUser = {
 type AuthUser = {
   uid: string;
   email: string | null;
+  displayName: string | null;
+  provider: string | null;
   createdAt: string | null;
   lastSignIn: string | null;
 };
@@ -89,6 +93,8 @@ export async function getAdminData(): Promise<{ stats: AdminStats; users: AdminU
     ? authUsers.map(u => ({
         uid: u.uid,
         email: u.email,
+        displayName: u.displayName,
+        provider: u.provider,
         createdAt: u.createdAt,
         lastSignIn: u.lastSignIn,
         firstSeen: (firestoreMap.get(u.uid)?.firstSeen as { seconds: number } | undefined) ?? null,

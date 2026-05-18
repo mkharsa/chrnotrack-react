@@ -214,20 +214,27 @@ export default function Admin() {
             ) : (
               <div className="divide-y divide-border">
                 {users.map((u, i) => {
-                  const lastActive = u.lastSignIn
-                    ? fmtISO(u.lastSignIn)
-                    : fmtFirestore(u.lastSeen);
-                  const createdLabel = u.createdAt
-                    ? fmtISO(u.createdAt)
-                    : fmtFirestore(u.firstSeen);
+                  const lastActive = u.lastSignIn ? fmtISO(u.lastSignIn) : fmtFirestore(u.lastSeen);
+                  const createdLabel = u.createdAt ? fmtISO(u.createdAt) : fmtFirestore(u.firstSeen);
+                  const providerLabel = u.provider === "google.com" ? "Google"
+                    : u.provider === "password" ? "Email"
+                    : u.provider ?? "—";
                   return (
-                    <div key={u.uid} className="flex items-center gap-3 px-4 py-3 text-sm">
-                      <span className="text-muted-foreground w-5 text-right shrink-0 text-xs">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium truncate">{u.email ?? u.uid}</p>
-                        {u.email && <p className="font-mono text-[10px] text-muted-foreground truncate">{u.uid}</p>}
+                    <div key={u.uid} className="flex items-start gap-3 px-4 py-3 text-sm">
+                      <span className="text-muted-foreground w-5 text-right shrink-0 text-xs mt-0.5">{i + 1}</span>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        {u.displayName && (
+                          <p className="text-sm font-semibold truncate">{u.displayName}</p>
+                        )}
+                        {u.email && (
+                          <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                        )}
+                        <p className="font-mono text-[10px] text-muted-foreground/60 truncate">{u.uid}</p>
+                        <span className="inline-block text-[10px] bg-muted px-1.5 py-0.5 rounded font-medium">
+                          {providerLabel}
+                        </span>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="text-right shrink-0 space-y-0.5">
                         <p className="text-xs text-muted-foreground">Créé le {createdLabel}</p>
                         <p className="text-xs text-muted-foreground">Actif le {lastActive}</p>
                       </div>
