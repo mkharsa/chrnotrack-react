@@ -13,7 +13,12 @@ const config: CapacitorConfig = {
       releaseType: "APK",
     },
   },
-  plugins: {},
+  plugins: {
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ["google.com"],
+    },
+  },
 };
 
 export default config;

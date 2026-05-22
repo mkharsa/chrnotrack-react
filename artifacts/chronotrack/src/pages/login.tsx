@@ -67,23 +67,21 @@ export default function Login() {
     const rawMsg = (e as Error).message ?? "";
     let msg: string;
 
+    // Log complet pour debug
+    console.error("[Auth error]", JSON.stringify({ code, rawMsg, full: e }));
+
     if (AUTH_ERRORS[code] !== undefined) {
       msg = AUTH_ERRORS[code];
     } else if (
-      rawMsg.toLowerCase().includes("something went wrong") ||
-      rawMsg.toLowerCase().includes("sign_in_failed") ||
-      rawMsg.toLowerCase().includes("google sign") ||
-      rawMsg.toLowerCase().includes("googleauth")
-    ) {
-      msg = "Connexion Google échouée. Vérifiez votre connexion internet et réessayez.";
-    } else if (
       rawMsg.toLowerCase().includes("cancel") ||
       rawMsg.toLowerCase().includes("annul") ||
-      rawMsg.toLowerCase().includes("dismissed")
+      rawMsg.toLowerCase().includes("dismissed") ||
+      code === "12501"
     ) {
       msg = ""; // user cancelled, don't show error
     } else {
-      msg = rawMsg || "Une erreur est survenue. Réessayez.";
+      // Affiche le code + message brut pour aider au diagnostic
+      msg = code ? `Erreur Google [${code}] : ${rawMsg || "inconnue"}` : (rawMsg || "Une erreur est survenue. Réessayez.");
     }
 
     if (msg) {
