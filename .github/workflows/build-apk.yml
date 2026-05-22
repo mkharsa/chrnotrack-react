@@ -25,6 +25,11 @@ jobs:
           java-version: "21"
           distribution: temurin
 
+      - name: Restore fixed debug keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -39,25 +44,6 @@ jobs:
 
       - name: Build debug APK
         run: cd artifacts/chronotrack/android && ./gradlew assembleDebug --no-daemon
-
-      - name: Print debug keystore SHA-1
-        run: |
-          KEYSTORE=$(find ~ -name "debug.keystore" 2>/dev/null | head -1)
-          echo "Keystore found at: $KEYSTORE"
-          if [ -n "$KEYSTORE" ]; then
-            keytool -list -v -keystore "$KEYSTORE" -alias androiddebugkey -storepass android -keypass android 2>/dev/null | tee /tmp/keytool_out.txt
-            SHA1=$(grep "SHA1:" /tmp/keytool_out.txt | head -1 | tr -d ' ' | cut -d':' -f2-)
-          else
-            echo "No keystore found, generating one..."
-            mkdir -p ~/.android
-            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" 2>/dev/null
-            SHA1=$(keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep "SHA1:" | head -1 | tr -d ' ' | cut -d':' -f2-)
-          fi
-          echo "### 🔑 Debug Keystore SHA-1" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$SHA1" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "SHA-1: $SHA1"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
