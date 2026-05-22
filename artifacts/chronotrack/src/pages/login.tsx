@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,17 +13,6 @@ import { Clock, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
 // Detect Capacitor native environment (Android / iOS)
 const isNative = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
   .Capacitor?.isNativePlatform?.();
-
-// Initialize GoogleAuth once on native
-if (isNative) {
-  try {
-    GoogleAuth.initialize({
-      clientId: "515465540862-rgosg8keesnplj4jnvj5jcoqp6qcisgt.apps.googleusercontent.com",
-      scopes: ["profile", "email"],
-      grantOfflineAccess: true,
-    });
-  } catch (_) { /* ignore if already initialized */ }
-}
 
 function GoogleIcon() {
   return (
@@ -110,14 +99,14 @@ export default function Login() {
     setLoading(true);
     try {
       if (isNative) {
-        // Use native Google Sign-In SDK via Capacitor plugin
-        const googleUser = await GoogleAuth.signIn();
-        if (!googleUser?.authentication?.idToken) {
+        // Plugin officiel Firebase pour Capacitor 7 — gère le Sign-In natif Android/iOS
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        if (!result.credential?.idToken) {
           throw new Error("Connexion Google annulée.");
         }
         const credential = GoogleAuthProvider.credential(
-          googleUser.authentication.idToken,
-          googleUser.authentication.accessToken,
+          result.credential.idToken,
+          result.credential.accessToken ?? undefined,
         );
         await signInWithCredential(auth, credential);
       } else {
