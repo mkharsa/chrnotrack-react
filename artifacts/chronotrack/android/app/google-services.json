@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "515465540862",
+    "project_id": "chronotrack-8c563",
+    "storage_bucket": "chronotrack-8c563.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:515465540862:android:2c86d138fad4f64087e1af",
+        "android_client_info": {
+          "package_name": "chrono.track"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "515465540862-2l9dailpe3ct7lgto4u8mjs9g653cud8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "chrono.track",
+            "certificate_hash": "626bc1eab145cfb95da8eca2f41f877037656d6b"
+          }
+        },
+        {
+          "client_id": "515465540862-rgosg8keesnplj4jnvj5jcoqp6qcisgt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChHWz7fRWYoYBftR296GxOG-21a62gAag"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "515465540862-rgosg8keesnplj4jnvj5jcoqp6qcisgt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
