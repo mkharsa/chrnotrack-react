@@ -70,18 +70,22 @@ export default function Login() {
     // Log complet pour debug
     console.error("[Auth error]", JSON.stringify({ code, rawMsg, full: e }));
 
-    if (AUTH_ERRORS[code] !== undefined) {
-      msg = AUTH_ERRORS[code];
+    // Extraire le code numérique depuis le message brut si absent (ex: "10: ..." ou "12501: ...")
+    const numericCodeInMsg = rawMsg.match(/^(\d+)\s*:/)?.[1] ?? "";
+    const effectiveCode = code || numericCodeInMsg;
+
+    if (AUTH_ERRORS[effectiveCode] !== undefined) {
+      msg = AUTH_ERRORS[effectiveCode];
     } else if (
       rawMsg.toLowerCase().includes("cancel") ||
       rawMsg.toLowerCase().includes("annul") ||
       rawMsg.toLowerCase().includes("dismissed") ||
-      code === "12501"
+      effectiveCode === "12501"
     ) {
       msg = ""; // user cancelled, don't show error
     } else {
       // Affiche le code + message brut pour aider au diagnostic
-      msg = code ? `Erreur Google [${code}] : ${rawMsg || "inconnue"}` : (rawMsg || "Une erreur est survenue. Réessayez.");
+      msg = effectiveCode ? `Erreur Google [${effectiveCode}] : ${rawMsg || "inconnue"}` : (rawMsg || "Une erreur est survenue. Réessayez.");
     }
 
     if (msg) {

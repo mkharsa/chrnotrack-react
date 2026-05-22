@@ -28,10 +28,22 @@ jobs:
       - name: Restore fixed debug keystore
         run: |
           mkdir -p ~/.android
+          # Fail loudly if the secret is missing
+          if [ -z "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "::error::Secret ANDROID_DEBUG_KEYSTORE_BASE64 is not set! Google Sign-In will fail."
+            exit 1
+          fi
           echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
           echo "=== Keystore info (alias & SHA-1) ==="
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | grep -E "Alias name|SHA1:" || \
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | head -40
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | grep -E "Alias name|SHA1:"
+          KEYSTORE_SHA1=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | grep "SHA1:" | head -1 | awk '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          echo "Keystore SHA1 (normalized): $KEYSTORE_SHA1"
+          echo "Expected SHA1:              852942715bc1fc491d75000c6a9af7b05c695ac4"
+          if [ "$KEYSTORE_SHA1" != "852942715bc1fc491d75000c6a9af7b05c695ac4" ]; then
+            echo "::error::Keystore SHA-1 mismatch! Got $KEYSTORE_SHA1"
+            exit 1
+          fi
+          echo "✅ Keystore SHA-1 matches — Google Sign-In will work."
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
