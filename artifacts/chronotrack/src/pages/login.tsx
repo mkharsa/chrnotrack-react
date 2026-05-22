@@ -98,7 +98,7 @@ export default function Login() {
     try {
       if (isNative) {
         // Plugin officiel Firebase pour Capacitor 7 — gère le Sign-In natif Android/iOS
-        const result = await FirebaseAuthentication.signInWithGoogle();
+        const result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
         if (!result.credential?.idToken) {
           throw new Error("Connexion Google annulée.");
         }
