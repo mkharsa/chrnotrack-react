@@ -14,6 +14,17 @@ import { Clock, Mail, Eye, EyeOff, ArrowLeft } from "lucide-react";
 const isNative = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
   .Capacitor?.isNativePlatform?.();
 
+// Initialize GoogleAuth once on native
+if (isNative) {
+  try {
+    GoogleAuth.initialize({
+      clientId: "515465540862-rgosg8keesnplj4jnvj5jcoqp6qcisgt.apps.googleusercontent.com",
+      scopes: ["profile", "email"],
+      grantOfflineAccess: true,
+    });
+  } catch (_) { /* ignore if already initialized */ }
+}
+
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
@@ -70,10 +81,14 @@ export default function Login() {
 
   const handleGoogle = async () => {
     setError(null);
+    setLoading(true);
     try {
       if (isNative) {
         // Use native Google Sign-In SDK via Capacitor plugin
         const googleUser = await GoogleAuth.signIn();
+        if (!googleUser?.authentication?.idToken) {
+          throw new Error("Connexion Google annulée.");
+        }
         const credential = GoogleAuthProvider.credential(
           googleUser.authentication.idToken,
           googleUser.authentication.accessToken,
@@ -83,6 +98,7 @@ export default function Login() {
         await signInWithPopup(auth, new GoogleAuthProvider());
       }
     } catch (e) { handleError(e); }
+    finally { setLoading(false); }
   };
 
   const handleEmail = async () => {
