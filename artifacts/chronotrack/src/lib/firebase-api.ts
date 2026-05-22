@@ -439,6 +439,8 @@ export type TrainingPlan = {
   date: string;
   title: string;
   notes?: string | null;
+  club?: string | null;
+  group?: string | null;
   participantIds: string[];
   exercises: TrainingExercise[];
 };
@@ -458,6 +460,8 @@ export function useListTraining() {
             date: data.date as string,
             title: data.title as string,
             notes: (data.notes as string | null) ?? null,
+            club: (data.club as string | null) ?? null,
+            group: (data.group as string | null) ?? null,
             participantIds: (data.participantIds as string[]) ?? [],
             exercises: (data.exercises as TrainingExercise[]) ?? [],
           };
@@ -476,6 +480,8 @@ export function useCreateTrainingPlan() {
         date: data.date,
         title: sanitize(data.title, LIMITS.title),
         notes: sanitizeOpt(data.notes, LIMITS.notes),
+        club: sanitizeOpt(data.club, LIMITS.title),
+        group: sanitizeOpt(data.group, LIMITS.title),
         participantIds: data.participantIds.slice(0, 200),
         exercises: data.exercises.slice(0, 50).map(e => ({
           ...e,

@@ -1,8 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Flag, RotateCcw } from "lucide-react";
-
-const R = 108;
-const CIRC = 2 * Math.PI * R;
+import { Flag, RotateCcw, Play, Square, Zap } from "lucide-react";
 
 function pad(n: number) { return String(n).padStart(2, "0"); }
 
@@ -70,90 +67,64 @@ export default function FreeChrono() {
   };
 
   const { m, s, cs } = fmt(elapsed);
-  const ringProgress = (elapsed % 60000) / 60000;
-  const dashOffset = CIRC * (1 - ringProgress);
-
   const bestSplit = laps.length > 1 ? Math.min(...laps.map(l => l.split)) : null;
   const worstSplit = laps.length > 1 ? Math.max(...laps.map(l => l.split)) : null;
-
   const currentSplit = elapsed - lapStart;
 
   return (
-    <div className="flex flex-col h-full bg-background select-none">
+    <div className="flex flex-col h-full bg-zinc-950 select-none text-white">
 
       {/* Timer zone */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-10">
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
 
-        {/* Ring */}
-        <div className="relative flex items-center justify-center">
-          <svg width="260" height="260" className="-rotate-90" aria-hidden>
-            {/* Glow ring (running only) */}
-            {isRunning && (
-              <circle
-                cx="130" cy="130" r={R}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="14"
-                strokeDasharray={`${CIRC}`}
-                strokeDashoffset={dashOffset}
-                className="text-primary opacity-20 blur-sm"
-              />
-            )}
-            {/* Track */}
-            <circle cx="130" cy="130" r={R} fill="none" stroke="currentColor" strokeWidth="5" className="text-border" />
-            {/* Progress */}
-            <circle
-              cx="130" cy="130" r={R}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray={`${CIRC}`}
-              strokeDashoffset={dashOffset}
-              className={
-                isRunning ? "text-primary"
-                : elapsed > 0 ? "text-amber-400"
-                : "text-transparent"
-              }
-              style={{ transition: isRunning ? "none" : "stroke 0.4s" }}
-            />
-            {/* Tick marks every 5s */}
-            {Array.from({ length: 12 }).map((_, i) => {
-              const angle = (i / 12) * 2 * Math.PI - Math.PI / 2;
-              const x1 = 130 + (R - 10) * Math.cos(angle);
-              const y1 = 130 + (R - 10) * Math.sin(angle);
-              const x2 = 130 + (R - 16) * Math.cos(angle);
-              const y2 = 130 + (R - 16) * Math.sin(angle);
-              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth="1.5" className="text-border" />;
-            })}
-          </svg>
-
-          {/* Time display */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-            <div className={`tabular-nums leading-none transition-colors ${
-              isRunning ? "text-foreground" : elapsed > 0 ? "text-amber-400" : "text-muted-foreground"
-            }`}>
-              <span className="text-[52px] font-extralight tracking-tight font-mono">{m}:{s}</span>
-              <span className="text-[28px] font-extralight font-mono opacity-60">.{cs}</span>
-            </div>
-            {laps.length > 0 && isRunning && (
-              <div className="text-xs text-muted-foreground font-mono tabular-nums">
-                Tour {laps.length + 1} · +{fmtShort(currentSplit)}
-              </div>
-            )}
-            {!isRunning && elapsed === 0 && (
-              <div className="text-xs text-muted-foreground">Prêt</div>
-            )}
-          </div>
+        {/* Status badge */}
+        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-black uppercase tracking-widest transition-all ${
+          isRunning
+            ? "border-green-500/50 bg-green-500/10 text-green-400 animate-pulse"
+            : elapsed > 0
+            ? "border-amber-500/50 bg-amber-500/10 text-amber-400"
+            : "border-zinc-700 bg-zinc-900 text-zinc-500"
+        }`}>
+          <Zap className="w-3 h-3 fill-current" />
+          {isRunning ? "Chrono actif" : elapsed > 0 ? "En pause" : "Prêt"}
         </div>
 
+        {/* Main time display */}
+        <div className="text-center">
+          <div className={`tabular-nums leading-none font-mono font-black transition-colors ${
+            isRunning
+              ? "text-green-400 drop-shadow-[0_0_20px_rgba(74,222,128,0.6)]"
+              : elapsed > 0
+              ? "text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.4)]"
+              : "text-zinc-600"
+          }`}>
+            <span className="text-[72px] tracking-tight">{m}:{s}</span>
+            <span className="text-[40px] opacity-70">.{cs}</span>
+          </div>
+
+          {/* Split indicator */}
+          {laps.length > 0 && isRunning && (
+            <div className="mt-3 text-sm text-zinc-400 font-mono tabular-nums">
+              Tour {laps.length + 1} · <span className="text-green-400">+{fmtShort(currentSplit)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Lap count */}
+        {laps.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
+            <Flag className="w-3 h-3" />
+            {laps.length} tour{laps.length > 1 ? "s" : ""}
+          </div>
+        )}
+
         {/* Buttons */}
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-6">
           {/* Lap */}
           <button
             onClick={handleLap}
             disabled={!isRunning}
-            className="w-14 h-14 rounded-full border-2 border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none shadow-sm"
+            className="w-16 h-16 rounded-full border-2 border-zinc-700 bg-zinc-900 flex items-center justify-center text-zinc-500 hover:text-white hover:border-zinc-500 active:scale-95 transition-all disabled:opacity-20 disabled:pointer-events-none"
           >
             <Flag className="w-5 h-5" />
           </button>
@@ -161,20 +132,30 @@ export default function FreeChrono() {
           {/* Start / Stop */}
           <button
             onClick={handleStartStop}
-            className={`w-[88px] h-[88px] rounded-full flex items-center justify-center font-semibold text-sm text-white active:scale-95 transition-all shadow-xl ${
+            className={`w-24 h-24 rounded-full flex items-center justify-center font-black text-sm uppercase tracking-widest active:scale-95 transition-all shadow-2xl ${
               isRunning
-                ? "bg-red-500 hover:bg-red-600 shadow-red-500/40"
-                : "bg-primary hover:bg-primary/90 shadow-primary/40"
+                ? "bg-red-600 hover:bg-red-500 shadow-red-600/40 text-white"
+                : "bg-green-500 hover:bg-green-400 shadow-green-500/40 text-black"
             }`}
           >
-            {isRunning ? "Stop" : elapsed > 0 ? "Reprendre" : "Démarrer"}
+            {isRunning ? (
+              <div className="flex flex-col items-center gap-1">
+                <Square className="w-5 h-5 fill-current" />
+                <span className="text-[10px]">Stop</span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <Play className="w-5 h-5 fill-current" />
+                <span className="text-[10px]">{elapsed > 0 ? "Suite" : "Start"}</span>
+              </div>
+            )}
           </button>
 
           {/* Reset */}
           <button
             onClick={handleReset}
             disabled={elapsed === 0}
-            className="w-14 h-14 rounded-full border-2 border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none shadow-sm"
+            className="w-16 h-16 rounded-full border-2 border-zinc-700 bg-zinc-900 flex items-center justify-center text-zinc-500 hover:text-white hover:border-zinc-500 active:scale-95 transition-all disabled:opacity-20 disabled:pointer-events-none"
           >
             <RotateCcw className="w-5 h-5" />
           </button>
@@ -183,8 +164,8 @@ export default function FreeChrono() {
 
       {/* Laps list */}
       {laps.length > 0 && (
-        <div className="border-t border-border overflow-y-auto" style={{ maxHeight: "38vh" }}>
-          <div className="px-5 py-2 flex justify-between text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
+        <div className="border-t border-zinc-800 overflow-y-auto bg-zinc-950" style={{ maxHeight: "35vh" }}>
+          <div className="px-5 py-2 flex justify-between text-[11px] text-zinc-600 font-medium uppercase tracking-wider border-b border-zinc-900">
             <span>Tour</span>
             <span>Split</span>
             <span>Total</span>
@@ -195,19 +176,19 @@ export default function FreeChrono() {
             return (
               <div
                 key={lap.index}
-                className={`px-5 py-3 flex justify-between items-center text-sm border-t border-border/40 ${
-                  isBest ? "bg-green-500/8 text-green-500"
-                  : isWorst ? "bg-red-500/8 text-red-400"
-                  : "text-foreground"
+                className={`px-5 py-3 flex justify-between items-center text-sm border-b border-zinc-900/60 ${
+                  isBest ? "text-green-400"
+                  : isWorst ? "text-red-400"
+                  : "text-zinc-300"
                 }`}
               >
-                <span className="w-16 font-medium">Tour {lap.index}</span>
-                <span className="font-mono tabular-nums">
+                <span className="w-16 font-medium text-zinc-500">T{lap.index}</span>
+                <span className="font-mono tabular-nums font-bold">
                   {fmtShort(lap.split)}
                   {isBest && <span className="ml-1.5 text-[10px] opacity-70">↑ meilleur</span>}
                   {isWorst && <span className="ml-1.5 text-[10px] opacity-70">↓ pire</span>}
                 </span>
-                <span className="font-mono tabular-nums text-muted-foreground text-xs w-16 text-right">
+                <span className="font-mono tabular-nums text-zinc-600 text-xs w-16 text-right">
                   {fmtShort(lap.total)}
                 </span>
               </div>

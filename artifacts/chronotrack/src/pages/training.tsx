@@ -28,7 +28,39 @@ function newDraft(): DraftExercise {
 
 // ─── Add Form ─────────────────────────────────────────────────────────────────
 
-function AddForm({ onClose }: { onClose: () => void }) {
+function AutocompleteInput({
+  value, onChange, suggestions, placeholder, className,
+}: {
+  value: string; onChange: (v: string) => void;
+  suggestions: string[]; placeholder?: string; className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const filtered = suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s !== value);
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        className={className}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+          {filtered.map(s => (
+            <button key={s} className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+              onMouseDown={() => { onChange(s); setOpen(false); }}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddForm({ onClose, clubs, groups }: { onClose: () => void; clubs: string[]; groups: string[] }) {
   const qc = useQueryClient();
   const { data: participants = [] } = useListParticipants();
   const createPlan = useCreateTrainingPlan();
@@ -37,6 +69,8 @@ function AddForm({ onClose }: { onClose: () => void }) {
   const [date, setDate] = useState(todayKey);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
+  const [club, setClub] = useState("");
+  const [group, setGroup] = useState("");
   const [selectedPids, setSelectedPids] = useState<Set<string>>(new Set());
   const [exercises, setExercises] = useState<DraftExercise[]>([newDraft()]);
   const [newAthleteName, setNewAthleteName] = useState("");
@@ -76,6 +110,8 @@ function AddForm({ onClose }: { onClose: () => void }) {
         date,
         title: title.trim(),
         notes: notes.trim() || null,
+        club: club.trim() || null,
+        group: group.trim() || null,
         participantIds: Array.from(selectedPids),
         exercises: builtExercises,
       },
@@ -95,6 +131,18 @@ function AddForm({ onClose }: { onClose: () => void }) {
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Titre de la séance</label>
           <Input placeholder="Ex: Vitesse — sprint" value={title} onChange={e => setTitle(e.target.value)} />
+        </div>
+      </div>
+
+      {/* Club + Groupe */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Club (optionnel)</label>
+          <AutocompleteInput value={club} onChange={setClub} suggestions={clubs} placeholder="Ex: CN Versailles" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Groupe (optionnel)</label>
+          <AutocompleteInput value={group} onChange={setGroup} suggestions={groups} placeholder="Ex: Seniors A" />
         </div>
       </div>
 
@@ -278,7 +326,11 @@ function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantN
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5 capitalize">{formatDate(plan.date)}</p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <p className="text-xs text-muted-foreground capitalize">{formatDate(plan.date)}</p>
+            {plan.club && <span className="text-[10px] bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-full">🏛 {plan.club}</span>}
+            {plan.group && <span className="text-[10px] bg-violet-500/10 text-violet-600 px-2 py-0.5 rounded-full">👥 {plan.group}</span>}
+          </div>
         </div>
         {open ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
       </button>
@@ -361,6 +413,15 @@ export default function Training() {
   const [showForm, setShowForm] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [filterClub, setFilterClub] = useState<string | null>(null);
+  const [filterGroup, setFilterGroup] = useState<string | null>(null);
+
+  const clubs = Array.from(new Set(plans.map(p => p.club).filter(Boolean) as string[]));
+  const groups = Array.from(new Set(plans.map(p => p.group).filter(Boolean) as string[]));
+  const filteredPlans = plans.filter(p =>
+    (!filterClub || p.club === filterClub) &&
+    (!filterGroup || p.group === filterGroup)
+  );
 
   const participantNames = new Map(participants.map(p => [p.id, p.name]));
 
@@ -425,11 +486,29 @@ export default function Training() {
       </div>
 
       {/* Form */}
-      {showForm && <AddForm onClose={() => setShowForm(false)} />}
+      {showForm && <AddForm onClose={() => setShowForm(false)} clubs={clubs} groups={groups} />}
+
+      {/* Filters */}
+      {(clubs.length > 0 || groups.length > 0) && (
+        <div className="px-4 py-2 border-b border-border flex flex-wrap gap-2 bg-muted/20">
+          {clubs.map(c => (
+            <button key={c} onClick={() => setFilterClub(filterClub === c ? null : c)}
+              className={`px-3 py-1 rounded-full text-xs border transition-colors ${filterClub === c ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground hover:border-blue-400"}`}>
+              🏛 {c}
+            </button>
+          ))}
+          {groups.map(g => (
+            <button key={g} onClick={() => setFilterGroup(filterGroup === g ? null : g)}
+              className={`px-3 py-1 rounded-full text-xs border transition-colors ${filterGroup === g ? "bg-violet-500 text-white border-violet-500" : "bg-background border-border text-muted-foreground hover:border-violet-400"}`}>
+              👥 {g}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* List */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {plans.length === 0 && !showForm && (
+        {filteredPlans.length === 0 && !showForm && (
           <div className="text-center text-muted-foreground text-sm py-16">
             <Timer className="w-8 h-8 mx-auto mb-3 opacity-40" />
             <p>Aucun entraînement planifié</p>
@@ -437,7 +516,7 @@ export default function Training() {
           </div>
         )}
 
-        {plans.map(plan => (
+        {filteredPlans.map(plan => (
           <div key={plan.id} className="relative">
             {selectionMode && (
               <button
