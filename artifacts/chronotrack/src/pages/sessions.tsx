@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession,
   useListParticipants, useCreateParticipant, getListParticipantsQueryKey,
-  useGetSession, useListSeries, useListClubs, useListGroups,
+  useGetSession, useListSeries,
 } from "@/lib/firebase-api";
 import { exportSessionPDF } from "@/lib/export-pdf";
 import {
@@ -30,8 +30,6 @@ type Session = {
   date: string;
   participantCount: number;
   defaultDist?: string | null;
-  club?: string | null;
-  group?: string | null;
 };
 
 type ViewMode = "list" | "calendar";
@@ -179,20 +177,6 @@ function SessionCard({
             <span className="font-mono text-primary font-medium">{session.defaultDist}m</span>
           )}
         </div>
-        {(session.club || session.group) && (
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            {session.club && (
-              <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                {session.club}
-              </span>
-            )}
-            {session.group && (
-              <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/10 text-violet-500 border border-violet-500/20">
-                {session.group}
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="flex items-center gap-1 ml-3">
@@ -377,20 +361,6 @@ function ListView({
                           <span className="font-mono text-primary font-medium">{s.defaultDist}m</span>
                         )}
                       </div>
-                      {(s.club || s.group) && (
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {s.club && (
-                            <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                              {s.club}
-                            </span>
-                          )}
-                          {s.group && (
-                            <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/10 text-violet-500 border border-violet-500/20">
-                              {s.group}
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
                     <div className="flex items-center gap-1 ml-3">
                       {!selectionMode && <ExportSessionButton session={s} />}
@@ -574,13 +544,9 @@ function SessionsCalendarView({
 
 export default function Sessions() {
   const { data: sessions, isLoading } = useListSessions();
-  const clubs = useListClubs();
-  const groups = useListGroups();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectionMode, setSelectionMode] = useState(false);
-  const [filterClub, setFilterClub] = useState<string>("");
-  const [filterGroup, setFilterGroup] = useState<string>("");
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const bulkDelete = useBulkDeleteSessions();
@@ -588,11 +554,7 @@ export default function Sessions() {
   const t = useT();
   const { lang } = useLang();
 
-  const filteredSessions = (sessions ?? []).filter(s => {
-    if (filterClub && s.club !== filterClub) return false;
-    if (filterGroup && s.group !== filterGroup) return false;
-    return true;
-  });
+  const filteredSessions = sessions ?? [];
 
   const toggleSelectionMode = () => {
     setSelectionMode(prev => {
@@ -640,65 +602,6 @@ export default function Sessions() {
           <CreateSessionDialog />
         </div>
 
-        {/* Club / Group filters */}
-        {(clubs.length > 0 || groups.length > 0) && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {clubs.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                <button
-                  onClick={() => setFilterClub("")}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
-                    !filterClub
-                      ? "bg-blue-500/10 text-blue-500 border-blue-500/30 font-semibold"
-                      : "border-border text-muted-foreground hover:border-blue-400/40"
-                  }`}
-                >
-                  {t.allClubs}
-                </button>
-                {clubs.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setFilterClub(prev => prev === c ? "" : c)}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
-                      filterClub === c
-                        ? "bg-blue-500/20 text-blue-500 border-blue-500/40 font-semibold"
-                        : "border-border text-muted-foreground hover:border-blue-400/40"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
-            {groups.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                <button
-                  onClick={() => setFilterGroup("")}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
-                    !filterGroup
-                      ? "bg-violet-500/10 text-violet-500 border-violet-500/30 font-semibold"
-                      : "border-border text-muted-foreground hover:border-violet-400/40"
-                  }`}
-                >
-                  {t.allGroups}
-                </button>
-                {groups.map(g => (
-                  <button
-                    key={g}
-                    onClick={() => setFilterGroup(prev => prev === g ? "" : g)}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
-                      filterGroup === g
-                        ? "bg-violet-500/20 text-violet-500 border-violet-500/40 font-semibold"
-                        : "border-border text-muted-foreground hover:border-violet-400/40"
-                    }`}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
           <button
@@ -770,11 +673,7 @@ function CreateSessionDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [club, setClub] = useState("");
-  const [group, setGroup] = useState("");
   const { data: participants } = useListParticipants();
-  const allClubs = useListClubs();
-  const allGroups = useListGroups();
   const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set());
   const [newAthleteeName, setNewAthleteName] = useState("");
   const createSession = useCreateSession();
@@ -793,15 +692,12 @@ function CreateSessionDialog() {
         date,
         defaultDist,
         participantIds: Array.from(selectedParticipants),
-        club: club.trim() || null,
-        group: group.trim() || null,
       }
     }, {
       onSuccess: (res) => {
         setOpen(false);
         setName("");
-        setClub("");
-        setGroup("");
+
         setSelectedParticipants(new Set());
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
         setLocation(`/sessions/${res.id}/chrono`);
@@ -854,29 +750,6 @@ function CreateSessionDialog() {
           <div className="grid gap-2">
             <Label htmlFor="date">{t.sessionDate}</Label>
             <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
-          </div>
-          {/* Club and Group */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="club">{t.sessionClub}</Label>
-              <AutocompleteInput
-                id="club"
-                value={club}
-                onChange={setClub}
-                placeholder={t.clubPlaceholder}
-                suggestions={allClubs}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="group">{t.sessionGroup}</Label>
-              <AutocompleteInput
-                id="group"
-                value={group}
-                onChange={setGroup}
-                placeholder={t.groupPlaceholder}
-                suggestions={allGroups}
-              />
-            </div>
           </div>
           <div className="grid gap-2 mt-2">
             <Label>{t.athletes}</Label>

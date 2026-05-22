@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Calendar as CalendarIcon, Clock, Dumbbell, LogOut, Timer, TrendingUp, Users } from "lucide-react";
+import { Activity, Clock, Dumbbell, LogOut, Timer, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { useLang, useT } from "@/lib/i18n";
@@ -58,7 +58,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem href="/sessions" icon={<Activity />} label={t.navSessions} active={location === "/" || location.startsWith("/sessions")} />
           <NavItem href="/free-chrono" icon={<Timer />} label={t.navChrono} active={location.startsWith("/free-chrono")} />
           <NavItem href="/athletes" icon={<Users />} label={t.navAthletes} active={location.startsWith("/athletes")} />
-          <NavItem href="/calendar" icon={<CalendarIcon />} label={t.navCalendar} active={location.startsWith("/calendar")} />
           <NavItem href="/progression" icon={<TrendingUp />} label={t.navProgression} active={location.startsWith("/progression")} />
         </div>
       </nav>
