@@ -48,6 +48,11 @@ const AUTH_ERRORS: Record<string, string> = {
   "auth/too-many-requests": "Trop de tentatives. Réessayez dans quelques minutes.",
   "auth/popup-closed-by-user": "",
   "auth/cancelled-popup-request": "",
+  // Google native sign-in errors
+  "10": "Erreur de configuration Google (SHA-1 non reconnu). Contactez le support.",
+  "12500": "Connexion Google échouée. Vérifiez votre connexion et réessayez.",
+  "12501": "", // user cancelled
+  "12502": "Trop de tentatives Google. Réessayez dans quelques minutes.",
 };
 
 const MAX_ATTEMPTS = 5;
@@ -70,7 +75,28 @@ export default function Login() {
 
   const handleError = (e: unknown) => {
     const code = (e as { code?: string }).code ?? "";
-    const msg = AUTH_ERRORS[code] ?? (e as Error).message;
+    const rawMsg = (e as Error).message ?? "";
+    let msg: string;
+
+    if (AUTH_ERRORS[code] !== undefined) {
+      msg = AUTH_ERRORS[code];
+    } else if (
+      rawMsg.toLowerCase().includes("something went wrong") ||
+      rawMsg.toLowerCase().includes("sign_in_failed") ||
+      rawMsg.toLowerCase().includes("google sign") ||
+      rawMsg.toLowerCase().includes("googleauth")
+    ) {
+      msg = "Connexion Google échouée. Vérifiez votre connexion internet et réessayez.";
+    } else if (
+      rawMsg.toLowerCase().includes("cancel") ||
+      rawMsg.toLowerCase().includes("annul") ||
+      rawMsg.toLowerCase().includes("dismissed")
+    ) {
+      msg = ""; // user cancelled, don't show error
+    } else {
+      msg = rawMsg || "Une erreur est survenue. Réessayez.";
+    }
+
     if (msg) {
       setError(msg);
       const next = attempts + 1;
@@ -239,7 +265,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setShowPwd(v => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-0 top-0 h-full px-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
             >
               {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>

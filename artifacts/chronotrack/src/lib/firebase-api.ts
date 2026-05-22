@@ -514,6 +514,80 @@ export function useDeleteTrainingPlan() {
   });
 }
 
+// ─── Club / Group Registry ────────────────────────────────────────────────────
+// Stores the list of archived clubs/groups so they no longer appear as suggestions.
+
+export type Registry = {
+  archivedClubs: string[];
+  archivedGroups: string[];
+};
+
+export const getRegistryQueryKey = () => ["registry"] as const;
+
+export function useRegistry() {
+  return useQuery({
+    queryKey: getRegistryQueryKey(),
+    queryFn: async (): Promise<Registry> => {
+      const ref = userDocRef("settings", "registry");
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return { archivedClubs: [], archivedGroups: [] };
+      const d = snap.data();
+      return {
+        archivedClubs: (d.archivedClubs ?? []) as string[],
+        archivedGroups: (d.archivedGroups ?? []) as string[],
+      };
+    },
+  });
+}
+
+export function useArchiveClub() {
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }): Promise<void> => {
+      const ref = userDocRef("settings", "registry");
+      const snap = await getDoc(ref);
+      const existing = snap.exists() ? ((snap.data().archivedClubs ?? []) as string[]) : [];
+      if (!existing.includes(name)) {
+        await setDoc(ref, { archivedClubs: [...existing, name] }, { merge: true });
+      }
+    },
+  });
+}
+
+export function useUnarchiveClub() {
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }): Promise<void> => {
+      const ref = userDocRef("settings", "registry");
+      const snap = await getDoc(ref);
+      const existing = snap.exists() ? ((snap.data().archivedClubs ?? []) as string[]) : [];
+      await setDoc(ref, { archivedClubs: existing.filter(c => c !== name) }, { merge: true });
+    },
+  });
+}
+
+export function useArchiveGroup() {
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }): Promise<void> => {
+      const ref = userDocRef("settings", "registry");
+      const snap = await getDoc(ref);
+      const existing = snap.exists() ? ((snap.data().archivedGroups ?? []) as string[]) : [];
+      if (!existing.includes(name)) {
+        await setDoc(ref, { archivedGroups: [...existing, name] }, { merge: true });
+      }
+    },
+  });
+}
+
+export function useUnarchiveGroup() {
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }): Promise<void> => {
+      const ref = userDocRef("settings", "registry");
+      const snap = await getDoc(ref);
+      const existing = snap.exists() ? ((snap.data().archivedGroups ?? []) as string[]) : [];
+      await setDoc(ref, { archivedGroups: existing.filter(g => g !== name) }, { merge: true });
+    },
+  });
+}
+
 // ─── Public Shares ────────────────────────────────────────────────────────────
 
 export type PublicShareDistance = {

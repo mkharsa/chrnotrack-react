@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Timer, Trash2, ChevronDown, ChevronUp, ExternalLink, Users, X } from "lucide-react";
+import { Plus, Timer, Trash2, ChevronDown, ChevronUp, ExternalLink, Users, X, Archive, RotateCcw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   useListTraining, useCreateTrainingPlan, useUpdateTrainingPlan, useDeleteTrainingPlan,
   useCreateSession, useListParticipants, useCreateParticipant,
-  getListTrainingQueryKey, getListSessionsQueryKey, getListParticipantsQueryKey,
+  useRegistry, useArchiveClub, useArchiveGroup, useUnarchiveClub, useUnarchiveGroup,
+  getListTrainingQueryKey, getListSessionsQueryKey, getListParticipantsQueryKey, getRegistryQueryKey,
   type TrainingPlan, type TrainingExercise,
 } from "@/lib/firebase-api";
 
@@ -29,10 +30,12 @@ function newDraft(): DraftExercise {
 // ─── Add Form ─────────────────────────────────────────────────────────────────
 
 function AutocompleteInput({
-  value, onChange, suggestions, placeholder, className,
+  value, onChange, suggestions, onArchive, placeholder, className,
 }: {
   value: string; onChange: (v: string) => void;
-  suggestions: string[]; placeholder?: string; className?: string;
+  suggestions: string[];
+  onArchive?: (name: string) => void;
+  placeholder?: string; className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const filtered = suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s !== value);
@@ -49,10 +52,23 @@ function AutocompleteInput({
       {open && filtered.length > 0 && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
           {filtered.map(s => (
-            <button key={s} className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-              onMouseDown={() => { onChange(s); setOpen(false); }}>
-              {s}
-            </button>
+            <div key={s} className="flex items-center group hover:bg-muted transition-colors">
+              <button
+                className="flex-1 text-left px-3 py-2.5 text-sm"
+                onMouseDown={() => { onChange(s); setOpen(false); }}
+              >
+                {s}
+              </button>
+              {onArchive && (
+                <button
+                  title="Archiver (masquer des suggestions)"
+                  className="px-3 py-2.5 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                  onMouseDown={e => { e.preventDefault(); onArchive(s); setOpen(false); }}
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -60,7 +76,13 @@ function AutocompleteInput({
   );
 }
 
-function AddForm({ onClose, clubs, groups }: { onClose: () => void; clubs: string[]; groups: string[] }) {
+function AddForm({ onClose, clubs, groups, onArchiveClub, onArchiveGroup }: {
+  onClose: () => void;
+  clubs: string[];
+  groups: string[];
+  onArchiveClub: (name: string) => void;
+  onArchiveGroup: (name: string) => void;
+}) {
   const qc = useQueryClient();
   const { data: participants = [] } = useListParticipants();
   const createPlan = useCreateTrainingPlan();
@@ -138,11 +160,11 @@ function AddForm({ onClose, clubs, groups }: { onClose: () => void; clubs: strin
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Club (optionnel)</label>
-          <AutocompleteInput value={club} onChange={setClub} suggestions={clubs} placeholder="Ex: CN Versailles" />
+          <AutocompleteInput value={club} onChange={setClub} suggestions={clubs} onArchive={onArchiveClub} placeholder="Ex: CN Versailles" />
         </div>
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Groupe (optionnel)</label>
-          <AutocompleteInput value={group} onChange={setGroup} suggestions={groups} placeholder="Ex: Seniors A" />
+          <AutocompleteInput value={group} onChange={setGroup} suggestions={groups} onArchive={onArchiveGroup} placeholder="Ex: Seniors A" />
         </div>
       </div>
 
@@ -407,7 +429,12 @@ function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantN
 export default function Training() {
   const { data: plans = [], isLoading } = useListTraining();
   const { data: participants = [] } = useListParticipants();
+  const { data: registry } = useRegistry();
   const deletePlan = useDeleteTrainingPlan();
+  const archiveClubMut = useArchiveClub();
+  const archiveGroupMut = useArchiveGroup();
+  const unarchiveClubMut = useUnarchiveClub();
+  const unarchiveGroupMut = useUnarchiveGroup();
   const qc = useQueryClient();
 
   const [showForm, setShowForm] = useState(false);
@@ -415,15 +442,43 @@ export default function Training() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filterClub, setFilterClub] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
-  const clubs = Array.from(new Set(plans.map(p => p.club).filter(Boolean) as string[]));
-  const groups = Array.from(new Set(plans.map(p => p.group).filter(Boolean) as string[]));
+  const archivedClubs = registry?.archivedClubs ?? [];
+  const archivedGroups = registry?.archivedGroups ?? [];
+
+  // All clubs/groups from plans, excluding archived ones for suggestions
+  const allClubs = Array.from(new Set(plans.map(p => p.club).filter(Boolean) as string[]));
+  const allGroups = Array.from(new Set(plans.map(p => p.group).filter(Boolean) as string[]));
+  const clubs = allClubs.filter(c => !archivedClubs.includes(c));
+  const groups = allGroups.filter(g => !archivedGroups.includes(g));
   const filteredPlans = plans.filter(p =>
     (!filterClub || p.club === filterClub) &&
     (!filterGroup || p.group === filterGroup)
   );
 
   const participantNames = new Map(participants.map(p => [p.id, p.name]));
+
+  const handleArchiveClub = (name: string) => {
+    archiveClubMut.mutate({ name }, {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getRegistryQueryKey() }),
+    });
+  };
+  const handleArchiveGroup = (name: string) => {
+    archiveGroupMut.mutate({ name }, {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getRegistryQueryKey() }),
+    });
+  };
+  const handleUnarchiveClub = (name: string) => {
+    unarchiveClubMut.mutate({ name }, {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getRegistryQueryKey() }),
+    });
+  };
+  const handleUnarchiveGroup = (name: string) => {
+    unarchiveGroupMut.mutate({ name }, {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getRegistryQueryKey() }),
+    });
+  };
 
   const toggleSelect = (id: string) =>
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -486,23 +541,67 @@ export default function Training() {
       </div>
 
       {/* Form */}
-      {showForm && <AddForm onClose={() => setShowForm(false)} clubs={clubs} groups={groups} />}
+      {showForm && (
+        <AddForm
+          onClose={() => setShowForm(false)}
+          clubs={clubs}
+          groups={groups}
+          onArchiveClub={handleArchiveClub}
+          onArchiveGroup={handleArchiveGroup}
+        />
+      )}
 
       {/* Filters */}
-      {(clubs.length > 0 || groups.length > 0) && (
-        <div className="px-4 py-2 border-b border-border flex flex-wrap gap-2 bg-muted/20">
-          {clubs.map(c => (
-            <button key={c} onClick={() => setFilterClub(filterClub === c ? null : c)}
-              className={`px-3 py-1 rounded-full text-xs border transition-colors ${filterClub === c ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground hover:border-blue-400"}`}>
-              🏛 {c}
-            </button>
-          ))}
-          {groups.map(g => (
-            <button key={g} onClick={() => setFilterGroup(filterGroup === g ? null : g)}
-              className={`px-3 py-1 rounded-full text-xs border transition-colors ${filterGroup === g ? "bg-violet-500 text-white border-violet-500" : "bg-background border-border text-muted-foreground hover:border-violet-400"}`}>
-              👥 {g}
-            </button>
-          ))}
+      {(clubs.length > 0 || groups.length > 0 || archivedClubs.length > 0 || archivedGroups.length > 0) && (
+        <div className="px-4 py-2 border-b border-border bg-muted/20">
+          <div className="flex flex-wrap gap-2">
+            {clubs.map(c => (
+              <button key={c} onClick={() => setFilterClub(filterClub === c ? null : c)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-sm ${filterClub === c ? "bg-blue-500 text-white shadow-blue-500/30" : "bg-background border border-border text-muted-foreground hover:border-blue-400"}`}>
+                🏛 {c}
+              </button>
+            ))}
+            {groups.map(g => (
+              <button key={g} onClick={() => setFilterGroup(filterGroup === g ? null : g)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-sm ${filterGroup === g ? "bg-violet-500 text-white shadow-violet-500/30" : "bg-background border border-border text-muted-foreground hover:border-violet-400"}`}>
+                👥 {g}
+              </button>
+            ))}
+            {(archivedClubs.length > 0 || archivedGroups.length > 0) && (
+              <button
+                onClick={() => setShowArchived(v => !v)}
+                className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all border border-dashed border-border text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <Archive className="w-3 h-3" />
+                Archivés ({archivedClubs.length + archivedGroups.length})
+              </button>
+            )}
+          </div>
+
+          {/* Archived items — restore panel */}
+          {showArchived && (archivedClubs.length > 0 || archivedGroups.length > 0) && (
+            <div className="mt-2 p-3 bg-muted/40 rounded-xl border border-dashed border-border">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">
+                Éléments archivés — cliquez pour restaurer
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {archivedClubs.map(c => (
+                  <button key={c} onClick={() => handleUnarchiveClub(c)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-dashed border-blue-400/50 text-blue-400 hover:bg-blue-500/10 transition-colors">
+                    <RotateCcw className="w-3 h-3" />
+                    🏛 {c}
+                  </button>
+                ))}
+                {archivedGroups.map(g => (
+                  <button key={g} onClick={() => handleUnarchiveGroup(g)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-dashed border-violet-400/50 text-violet-400 hover:bg-violet-500/10 transition-colors">
+                    <RotateCcw className="w-3 h-3" />
+                    👥 {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

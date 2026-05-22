@@ -258,19 +258,23 @@ function ListView({
             {selectionMode ? t.deselect : t.select}
           </button>
 
-          <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setGroupBy("day")}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
-                groupBy === "day" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                groupBy === "day"
+                  ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                  : "bg-muted/70 text-muted-foreground hover:bg-muted"
               }`}
             >
               {t.day}
             </button>
             <button
               onClick={() => setGroupBy("month")}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
-                groupBy === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                groupBy === "month"
+                  ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                  : "bg-muted/70 text-muted-foreground hover:bg-muted"
               }`}
             >
               {t.month}
@@ -603,10 +607,12 @@ export default function Sessions() {
         </div>
 
 
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+        <div className="flex items-center gap-2">
           <button
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              viewMode === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
+              viewMode === "list"
+                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                : "bg-muted/70 text-muted-foreground hover:bg-muted"
             }`}
             onClick={() => setViewMode("list")}
           >
@@ -614,8 +620,10 @@ export default function Sessions() {
             {t.listView}
           </button>
           <button
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              viewMode === "calendar" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
+              viewMode === "calendar"
+                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                : "bg-muted/70 text-muted-foreground hover:bg-muted"
             }`}
             onClick={() => setViewMode("calendar")}
           >
