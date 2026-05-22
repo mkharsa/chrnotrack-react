@@ -5,7 +5,8 @@ import { formatTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Square, RotateCcw, Flag, ChevronDown, ChevronUp, Timer, UserPlus, Plus } from "lucide-react";
+import { Play, Square, RotateCcw, Flag, ChevronDown, ChevronUp, Timer, UserPlus, Plus, Zap } from "lucide-react";
+import { useT } from "@/lib/i18n";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -126,7 +127,11 @@ export default function Chrono() {
         entries: [{ pid, name, timeMs, include: true }],
       }
     }, {
-      onSuccess: () => toast({ title: `Rép ${repIndex} — ${name} : ${formatTime(timeMs)}` }),
+      onSuccess: () => {
+        const storedLang = localStorage.getItem("ct_lang");
+        const repWord = storedLang === "en" ? `Rep ${repIndex}` : `Rép ${repIndex}`;
+        toast({ title: `${repWord} — ${name} : ${formatTime(timeMs)}` });
+      },
     });
   }, [session, distance, createSeries, toast]);
 
@@ -253,12 +258,13 @@ export default function Chrono() {
   return (
     <div className="flex flex-col bg-background text-foreground min-h-full">
       {/* ── Session header + global timer ── */}
-      <div className="p-4 border-b border-border bg-card shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="font-bold text-base text-primary">{session.name}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-muted-foreground uppercase tracking-wider">Dist :</span>
+      <div className="shrink-0">
+        {/* Session info bar */}
+        <div className="px-4 pt-3 pb-2 border-b border-border bg-card flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-bold text-base text-primary truncate">{session.name}</h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-xs text-muted-foreground uppercase tracking-wider"><ChronoDistLabel /></span>
               <Input
                 value={distance}
                 onChange={e => setDistance(e.target.value)}
@@ -268,84 +274,85 @@ export default function Chrono() {
               <span className="text-xs text-muted-foreground">m</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <AddAthleteDialog sessionId={sessionId} onAdded={addAthleteToLocal} />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
-            >
+            <Button variant="outline" size="sm" onClick={handleReset}>
               <RotateCcw className="w-4 h-4 mr-1" />
-              Reset
+              <ChronoResetLabel />
             </Button>
           </div>
         </div>
 
-        {/* Global session timer */}
-        <div className={`rounded-xl border p-3 flex items-center gap-4 transition-all ${
-          globalRunning
-            ? "border-amber-400/50 bg-amber-50 shadow-sm"
-            : "border-border bg-muted/40"
+        {/* Dark sporty global timer */}
+        <div className={`bg-zinc-950 border-b-2 transition-all ${
+          globalRunning ? "border-green-500" : "border-zinc-800"
         }`}>
-          <div className="flex items-center gap-2 shrink-0">
-            <Timer className={`w-4 h-4 ${globalRunning ? "text-amber-600" : "text-muted-foreground"}`} />
-            <span className={`text-xs uppercase tracking-wider font-medium ${globalRunning ? "text-amber-700" : "text-muted-foreground"}`}>
-              Chrono session
-            </span>
-          </div>
-          <div className={`font-mono text-2xl font-bold tabular-nums tracking-tight flex-1 ${
-            globalRunning ? "text-amber-700" : "text-muted-foreground"
-          }`}>
-            {formatTime(globalMs)}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {!globalRunning ? (
-              <Button
-                size="sm"
-                className="bg-amber-500 text-white hover:bg-amber-600 h-8 px-3 font-bold text-xs uppercase"
-                onClick={handleGlobalStart}
-              >
-                <Play className="w-3 h-3 mr-1 fill-current" />
-                Start
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-amber-400 text-amber-700 hover:bg-amber-50 h-8 px-3 font-bold text-xs uppercase"
-                onClick={handleGlobalStop}
-              >
-                <Square className="w-3 h-3 mr-1 fill-current" />
-                Stop
-              </Button>
-            )}
-            {globalMs > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                onClick={handleGlobalReset}
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </Button>
-            )}
+          <div className="px-4 pt-3 pb-2">
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Timer className={`w-3.5 h-3.5 ${globalRunning ? "text-green-400" : "text-zinc-500"}`} />
+                <span className={`text-[10px] uppercase tracking-widest font-bold ${globalRunning ? "text-zinc-400" : "text-zinc-600"}`}>
+                  <ChronoSessionLabel />
+                </span>
+              </div>
+              {globalRunning && (
+                <div className="flex items-center gap-1.5 animate-pulse">
+                  <Zap className="w-3 h-3 text-green-400 fill-green-400" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-green-400">
+                    <ChronoActiveLabel />
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Big timer + controls */}
+            <div className="flex items-center justify-between gap-4">
+              <div className={`font-mono font-black tabular-nums tracking-tight leading-none select-none ${
+                globalRunning ? "text-green-400 text-5xl drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : "text-white text-5xl"
+              }`}>
+                {formatTime(globalMs)}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {!globalRunning ? (
+                  <button
+                    onClick={handleGlobalStart}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-500 hover:bg-green-400 text-black font-black text-sm uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-green-500/30"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <ChronoStartLabel />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleGlobalStop}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-sm uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-red-600/30"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                    <ChronoStopLabel />
+                  </button>
+                )}
+                {globalMs > 0 && (
+                  <button
+                    onClick={handleGlobalReset}
+                    className="p-2.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-all"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* ── Select-all row ── */}
-      <div className="px-4 py-2 border-b border-border flex items-center gap-3 bg-muted/30 shrink-0">
-        <Checkbox
-          checked={allSelected}
-          onCheckedChange={toggleSelectAll}
-          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-        />
-        <span className="text-xs text-muted-foreground uppercase tracking-wider">
-          {anySelected
-            ? `${selectedParticipants.length} sélectionné${selectedParticipants.length > 1 ? "s" : ""}`
-            : "Tout sélectionner"}
-        </span>
-      </div>
+      <SelectAllRow
+        allSelected={allSelected}
+        anySelected={anySelected}
+        selectedCount={selectedParticipants.length}
+        onToggleAll={toggleSelectAll}
+      />
 
       {/* ── Athletes list ── */}
       <div className="p-4 space-y-3 pb-6">
@@ -362,51 +369,109 @@ export default function Chrono() {
           />
         ))}
         {participants.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground text-sm">
-            Aucun athlète dans cette session.
-          </div>
+          <NoAthleteMessage />
         )}
       </div>
 
       {/* ── Group action bar (sticky bottom) ── */}
       {anySelected && (
-        <div className="sticky bottom-0 left-0 right-0 bg-card/95 backdrop-blur border-t border-border p-3 flex items-center gap-2 shadow-lg">
-          <span className="text-xs text-muted-foreground shrink-0 mr-1">
-            {selectedParticipants.length} athlète{selectedParticipants.length > 1 ? "s" : ""}
-          </span>
-          {selectedNotRunning.length > 0 && (
-            <Button
-              size="sm"
-              className="flex-1 font-bold text-xs uppercase tracking-wider"
-              onClick={startSelected}
-            >
-              <Play className="w-3 h-3 mr-1.5 fill-current" />
-              Démarrer ({selectedNotRunning.length})
-            </Button>
-          )}
-          {selectedRunning.length > 0 && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-primary border-primary/40 hover:bg-primary/10 font-mono text-xs"
-                onClick={lapSelected}
-              >
-                <Flag className="w-3 h-3 mr-1.5" />
-                LAP
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="flex-1 font-bold text-xs uppercase tracking-wider"
-                onClick={stopSelected}
-              >
-                <Square className="w-3 h-3 mr-1.5 fill-current" />
-                Arrêter ({selectedRunning.length})
-              </Button>
-            </>
-          )}
-        </div>
+        <GroupActionBar
+          selectedCount={selectedParticipants.length}
+          selectedNotRunningCount={selectedNotRunning.length}
+          selectedRunningCount={selectedRunning.length}
+          onStartSelected={startSelected}
+          onStopSelected={stopSelected}
+          onLapSelected={lapSelected}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Small i18n helper components ─────────────────────────────────────────────
+
+function ChronoDistLabel() { const t = useT(); return <>{t.distLabel}</>; }
+function ChronoResetLabel() { const t = useT(); return <>{t.resetLabel}</>; }
+function ChronoSessionLabel() { const t = useT(); return <>{t.chronoSession}</>; }
+function ChronoActiveLabel() { const t = useT(); return <>{t.chronoActive}</>; }
+function ChronoStartLabel() { const t = useT(); return <>{t.startLabel}</>; }
+function ChronoStopLabel() { const t = useT(); return <>{t.stopLabel}</>; }
+
+function SelectAllRow({ allSelected, anySelected, selectedCount, onToggleAll }: {
+  allSelected: boolean;
+  anySelected: boolean;
+  selectedCount: number;
+  onToggleAll: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="px-4 py-2 border-b border-border flex items-center gap-3 bg-muted/30 shrink-0">
+      <Checkbox
+        checked={allSelected}
+        onCheckedChange={onToggleAll}
+        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+      />
+      <span className="text-xs text-muted-foreground uppercase tracking-wider">
+        {anySelected ? t.nSelected(selectedCount) : t.selectAll}
+      </span>
+    </div>
+  );
+}
+
+function NoAthleteMessage() {
+  const t = useT();
+  return (
+    <div className="text-center py-12 text-muted-foreground text-sm">
+      {t.noAthleteInSession}
+    </div>
+  );
+}
+
+function GroupActionBar({ selectedCount, selectedNotRunningCount, selectedRunningCount, onStartSelected, onStopSelected, onLapSelected }: {
+  selectedCount: number;
+  selectedNotRunningCount: number;
+  selectedRunningCount: number;
+  onStartSelected: () => void;
+  onStopSelected: () => void;
+  onLapSelected: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="sticky bottom-0 left-0 right-0 bg-card/95 backdrop-blur border-t border-border p-3 flex items-center gap-2 shadow-lg">
+      <span className="text-xs text-muted-foreground shrink-0 mr-1">
+        {t.nAthletes(selectedCount)}
+      </span>
+      {selectedNotRunningCount > 0 && (
+        <Button
+          size="sm"
+          className="flex-1 font-bold text-xs uppercase tracking-wider"
+          onClick={onStartSelected}
+        >
+          <Play className="w-3 h-3 mr-1.5 fill-current" />
+          {t.startN(selectedNotRunningCount)}
+        </Button>
+      )}
+      {selectedRunningCount > 0 && (
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-primary border-primary/40 hover:bg-primary/10 font-mono text-xs"
+            onClick={onLapSelected}
+          >
+            <Flag className="w-3 h-3 mr-1.5" />
+            LAP
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="flex-1 font-bold text-xs uppercase tracking-wider"
+            onClick={onStopSelected}
+          >
+            <Square className="w-3 h-3 mr-1.5 fill-current" />
+            {t.stopN(selectedRunningCount)}
+          </Button>
+        </>
       )}
     </div>
   );
@@ -429,6 +494,7 @@ function AthleteCard({
   expandedReps: Set<string>;
   onToggleRep: (key: string) => void;
 }) {
+  const t = useT();
   const avgMs =
     p.reps.length > 0
       ? Math.round(p.reps.reduce((s, r) => s + r.timeMs, 0) / p.reps.length)
@@ -490,7 +556,7 @@ function AthleteCard({
               onClick={() => onStart(p.spId)}
             >
               <Play className="w-3 h-3 mr-1 fill-current" />
-              {p.reps.length > 0 ? `Rép ${p.reps.length + 1}` : "Start"}
+              {p.reps.length > 0 ? t.repLabel(p.reps.length + 1) : t.startLabel}
             </Button>
           )}
         </div>
@@ -515,10 +581,10 @@ function AthleteCard({
         <div className="border-t border-border px-3 pb-3 pt-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-muted-foreground uppercase tracking-wider">
-              {p.reps.length} rép{p.reps.length > 1 ? "s" : ""}
+              {t.reps(p.reps.length)}
             </span>
             {avgMs !== null && (
-              <span className="text-xs font-mono text-primary font-semibold">Moy : {formatTime(avgMs)}</span>
+              <span className="text-xs font-mono text-primary font-semibold">{t.avg} : {formatTime(avgMs)}</span>
             )}
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -579,6 +645,7 @@ function AddAthleteDialog({
   const addToSession = useAddSessionParticipant();
   const createParticipant = useCreateParticipant();
   const { toast } = useToast();
+  const t = useT();
 
   const togglePid = (pid: string) => {
     setSelectedPids(prev => {
@@ -598,7 +665,7 @@ function AddAthleteDialog({
           {
             onSuccess: (sp) => {
               onAdded(sp.id, pid, p.name);
-              toast({ title: `${p.name} ajouté à la session` });
+              toast({ title: t.athleteAddedToSession(p.name) });
               resolve();
             },
             onError: () => resolve(),
@@ -622,7 +689,7 @@ function AddAthleteDialog({
             {
               onSuccess: (sp) => {
                 onAdded(sp.id, created.id, created.name);
-                toast({ title: `${created.name} créé et ajouté` });
+                toast({ title: t.athleteCreatedAndAdded(created.name) });
                 setNewName("");
                 setOpen(false);
               },
@@ -642,18 +709,18 @@ function AddAthleteDialog({
         className="border-primary/30 text-primary hover:bg-primary/10"
       >
         <UserPlus className="w-4 h-4 mr-1" />
-        Ajouter
+        {t.addAthlete}
       </Button>
       <DialogContent className="sm:max-w-[380px]">
         <DialogHeader>
-          <DialogTitle>Ajouter un athlète</DialogTitle>
+          <DialogTitle>{t.addAthleteTitle}</DialogTitle>
         </DialogHeader>
 
-        {/* Athlètes existants */}
+        {/* Existing athletes */}
         {allParticipants && allParticipants.length > 0 && (
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-              Athlètes existants
+              {t.existingAthletes}
             </Label>
             <div className="max-h-[180px] overflow-y-auto space-y-1 border border-border rounded-lg p-2">
               {allParticipants.map(p => (
@@ -677,27 +744,27 @@ function AddAthleteDialog({
                 disabled={addToSession.isPending}
               >
                 <Plus className="w-4 h-4 mr-1" />
-                Ajouter {selectedPids.size} athlète{selectedPids.size > 1 ? "s" : ""}
+                {t.addNAthletes(selectedPids.size)}
               </Button>
             )}
           </div>
         )}
 
-        {/* Séparateur */}
+        {/* Separator */}
         <div className="flex items-center gap-3 my-1">
           <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-muted-foreground">ou créer</span>
+          <span className="text-xs text-muted-foreground">{t.or}</span>
           <div className="flex-1 h-px bg-border" />
         </div>
 
-        {/* Nouvel athlète */}
+        {/* New athlete */}
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-            Nouvel athlète
+            {t.newAthleteLabel}
           </Label>
           <div className="flex gap-2">
             <Input
-              placeholder="Nom complet..."
+              placeholder={t.fullNamePlaceholder}
               value={newName}
               onChange={e => setNewName(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleCreateAndAdd()}
@@ -713,7 +780,7 @@ function AddAthleteDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Fermer</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>{t.close}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

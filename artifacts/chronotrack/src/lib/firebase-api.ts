@@ -46,6 +46,8 @@ export type Session = {
   date: string;
   participantCount: number;
   defaultDist?: string | null;
+  club?: string | null;
+  group?: string | null;
 };
 
 export type SessionParticipant = {
@@ -133,6 +135,8 @@ export function useListSessions() {
           name: data.name as string,
           date: data.date as string,
           defaultDist: (data.defaultDist as string | null) ?? null,
+          club: (data.club as string | null) ?? null,
+          group: (data.group as string | null) ?? null,
           participantCount: ((data.participants ?? []) as SessionParticipant[]).length,
         };
       });
@@ -140,10 +144,22 @@ export function useListSessions() {
   });
 }
 
+export function useListClubs() {
+  const { data: sessions } = useListSessions();
+  const clubs = Array.from(new Set((sessions ?? []).map(s => s.club).filter((c): c is string => !!c))).sort();
+  return clubs;
+}
+
+export function useListGroups() {
+  const { data: sessions } = useListSessions();
+  const groups = Array.from(new Set((sessions ?? []).map(s => s.group).filter((g): g is string => !!g))).sort();
+  return groups;
+}
+
 export function useCreateSession() {
   return useMutation({
     mutationFn: async ({ data }: {
-      data: { name: string; date: string; defaultDist?: string | null; participantIds?: string[] };
+      data: { name: string; date: string; defaultDist?: string | null; participantIds?: string[]; club?: string | null; group?: string | null };
     }): Promise<{ id: string }> => {
       const participants: SessionParticipant[] = [];
       for (const pid of (data.participantIds ?? [])) {
@@ -161,6 +177,8 @@ export function useCreateSession() {
         name: sanitize(data.name, LIMITS.title),
         date: data.date,
         defaultDist: sanitizeOpt(data.defaultDist ?? null, LIMITS.dist),
+        club: sanitizeOpt(data.club ?? null, LIMITS.name),
+        group: sanitizeOpt(data.group ?? null, LIMITS.name),
         participants,
         createdAt: serverTimestamp(),
       });

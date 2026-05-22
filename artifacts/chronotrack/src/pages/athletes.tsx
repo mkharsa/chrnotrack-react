@@ -17,11 +17,13 @@ import { Trash2, UserPlus, Users, Pencil, Check, X, ChevronDown, ChevronRight, T
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/lib/i18n";
 
 // ── Historique d'un athlète ───────────────────────────────────────────────────
 
 function AthleteHistory({ pid }: { pid: string }) {
   const { data: allSeries, isLoading } = useListSeries();
+  const t = useT();
 
   if (isLoading) {
     return (
@@ -44,7 +46,7 @@ function AthleteHistory({ pid }: { pid: string }) {
   if (entries.length === 0) {
     return (
       <div className="px-4 py-4 text-xs text-muted-foreground text-center border-t border-border">
-        Aucune performance enregistrée.
+        {t.noPerformance}
       </div>
     );
   }
@@ -70,7 +72,7 @@ function AthleteHistory({ pid }: { pid: string }) {
             <div className="px-4 py-2 flex items-center justify-between bg-muted/30">
               <span className="text-xs font-bold text-primary uppercase tracking-wider">{dist}m</span>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{all.length} essai{all.length > 1 ? "s" : ""}</span>
+                <span>{all.length} {all.length > 1 ? t.triesLabel_plural : t.triesLabel}</span>
                 <div className="flex items-center gap-1 text-green-500 font-mono font-semibold">
                   <TrendingDown className="w-3 h-3" />
                   {formatTime(best)}
@@ -84,8 +86,8 @@ function AthleteHistory({ pid }: { pid: string }) {
                 return (
                   <div key={i} className={`px-4 py-2 flex items-center justify-between ${isWorstRow ? "bg-red-500/5" : ""}`}>
                     <div className="flex items-center gap-2 w-16 shrink-0">
-                      {isWorstRow && <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">pire</span>}
-                      {isBest && <span className="text-[10px] font-bold text-green-500 uppercase tracking-wider">meilleur</span>}
+                      {isWorstRow && <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">{t.worstLabel}</span>}
+                      {isBest && <span className="text-[10px] font-bold text-green-500 uppercase tracking-wider">{t.bestLabel}</span>}
                       {!isWorstRow && !isBest && <span className="text-[10px] text-muted-foreground">#{i + 1}</span>}
                     </div>
                     <span className="text-xs text-muted-foreground flex-1">
@@ -109,6 +111,7 @@ function AthleteHistory({ pid }: { pid: string }) {
 
 export default function Athletes() {
   const { data: participants, isLoading } = useListParticipants();
+  const t = useT();
   const [newName, setNewName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
@@ -136,9 +139,9 @@ export default function Athletes() {
       onSuccess: created => {
         queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
         setNewName("");
-        toast({ title: `Athlète "${created.name}" ajouté` });
+        toast({ title: t.athleteAdded(created.name) });
       },
-      onError: err => toast({ title: "Erreur", description: String(err), variant: "destructive" }),
+      onError: err => toast({ title: t.error, description: String(err), variant: "destructive" }),
     });
   };
 
@@ -147,7 +150,7 @@ export default function Athletes() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
         setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-        toast({ title: `"${name}" supprimé` });
+        toast({ title: t.athleteDeleted(name) });
       },
     });
   };
@@ -158,7 +161,7 @@ export default function Athletes() {
     queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
     setSelectedIds(new Set());
     setSelectionMode(false);
-    toast({ title: `${ids.length} athlète${ids.length > 1 ? "s" : ""} supprimé${ids.length > 1 ? "s" : ""}` });
+    toast({ title: t.bulkDeleteAthletes(ids.length) });
   };
 
   const toggleSelect = (id: string) => {
@@ -192,9 +195,9 @@ export default function Athletes() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
         setEditingId(null);
-        toast({ title: `Renommé en "${trimmed}"` });
+        toast({ title: t.athleteRenamed(trimmed) });
       },
-      onError: err => toast({ title: "Erreur", description: String(err), variant: "destructive" }),
+      onError: err => toast({ title: t.error, description: String(err), variant: "destructive" }),
     });
   };
 
@@ -209,7 +212,7 @@ export default function Athletes() {
     <div className="flex flex-col h-full relative">
       <div className="flex-1 p-4 overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold tracking-tight text-foreground uppercase">Athlètes</h2>
+          <h2 className="text-xl font-bold tracking-tight text-foreground uppercase">{t.athletesTitle}</h2>
           <span className="text-sm text-muted-foreground">
             {participants?.length ?? 0} athlète{(participants?.length ?? 0) !== 1 ? "s" : ""}
           </span>
@@ -218,7 +221,7 @@ export default function Athletes() {
         {/* Formulaire d'ajout */}
         <div className="flex gap-2 mb-6">
           <Input
-            placeholder="Nom de l'athlète..."
+            placeholder={t.athleteNamePlaceholder}
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
@@ -226,7 +229,7 @@ export default function Athletes() {
           />
           <Button onClick={handleAdd} disabled={!newName.trim() || createParticipant.isPending}>
             <UserPlus className="w-4 h-4 mr-2" />
-            Ajouter
+            {t.add}
           </Button>
         </div>
 
@@ -244,8 +247,8 @@ export default function Athletes() {
             <div className="bg-card inline-flex p-4 rounded-full mb-4">
               <Users className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-sm font-medium">Aucun athlète enregistré.</p>
-            <p className="text-xs mt-1">Ajoutez un nom ci-dessus pour commencer.</p>
+            <p className="text-sm font-medium">{t.noAthletesRegistered}</p>
+            <p className="text-xs mt-1">{t.noAthletesHint}</p>
           </div>
         ) : (
           <div className="space-y-2 pb-20">
@@ -261,7 +264,7 @@ export default function Athletes() {
                     onCheckedChange={toggleAll}
                     className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                   />
-                  <span>Tout sélectionner</span>
+                  <span>{t.selectAll}</span>
                 </div>
               ) : <div />}
 
@@ -284,7 +287,7 @@ export default function Athletes() {
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   }`}
                 >
-                  {selectionMode ? "Annuler" : "Sélectionner"}
+                  {selectionMode ? t.deselect : t.select}
                 </button>
               </div>
             </div>

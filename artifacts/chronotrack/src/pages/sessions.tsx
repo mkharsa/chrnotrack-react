@@ -1,12 +1,16 @@
-import { useState } from "react";
-import { useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession, useListParticipants, useCreateParticipant, getListParticipantsQueryKey, useGetSession, useListSeries } from "@/lib/firebase-api";
+import { useState, useRef } from "react";
+import {
+  useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession,
+  useListParticipants, useCreateParticipant, getListParticipantsQueryKey,
+  useGetSession, useListSeries, useListClubs, useListGroups,
+} from "@/lib/firebase-api";
 import { exportSessionPDF } from "@/lib/export-pdf";
 import {
   format, isToday, parseISO,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth,
 } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr as frLocale } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useT, useLang } from "@/lib/i18n";
 
 type Session = {
   id: string;
@@ -25,6 +30,8 @@ type Session = {
   date: string;
   participantCount: number;
   defaultDist?: string | null;
+  club?: string | null;
+  group?: string | null;
 };
 
 type ViewMode = "list" | "calendar";
@@ -32,8 +39,9 @@ type GroupBy = "day" | "month";
 
 // ── Groupement ────────────────────────────────────────────────────────────────
 
-function groupSessions(sessions: Session[], groupBy: GroupBy) {
+function groupSessions(sessions: Session[], groupBy: GroupBy, lang: string) {
   const map = new Map<string, { label: string; sessions: Session[] }>();
+  const locale = lang === "fr" ? frLocale : undefined;
 
   for (const s of sessions) {
     const d = parseISO(s.date);
@@ -41,8 +49,8 @@ function groupSessions(sessions: Session[], groupBy: GroupBy) {
       ? format(d, "yyyy-MM-dd")
       : format(d, "yyyy-MM");
     const label = groupBy === "day"
-      ? (isToday(d) ? "Aujourd'hui" : format(d, "EEEE d MMMM yyyy", { locale: fr }))
-      : format(d, "MMMM yyyy", { locale: fr });
+      ? (isToday(d) ? (lang === "fr" ? "Aujourd'hui" : "Today") : format(d, "EEEE d MMMM yyyy", { locale }))
+      : format(d, "MMMM yyyy", { locale });
 
     if (!map.has(key)) map.set(key, { label, sessions: [] });
     map.get(key)!.sessions.push(s);
@@ -53,11 +61,56 @@ function groupSessions(sessions: Session[], groupBy: GroupBy) {
     .map(([, g]) => g);
 }
 
+// ── Autocomplete Input ─────────────────────────────────────────────────────────
+
+function AutocompleteInput({
+  id, value, onChange, placeholder, suggestions,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  suggestions: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const filtered = suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s !== value);
+
+  return (
+    <div className="relative" ref={ref}>
+      <Input
+        id={id}
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+          {filtered.map(s => (
+            <button
+              key={s}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+              onMouseDown={() => { onChange(s); setOpen(false); }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Carte session ─────────────────────────────────────────────────────────────
 
 function ExportSessionButton({ session }: { session: Session }) {
   const { data: detail } = useGetSession(session.id);
   const { data: allSeries } = useListSeries({ dateKey: session.date });
+  const t = useT();
 
   const handleExport = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -76,7 +129,7 @@ function ExportSessionButton({ session }: { session: Session }) {
   return (
     <button
       className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
-      title="Exporter PDF"
+      title={t.exportPdf}
       onClick={handleExport}
     >
       <Download className="w-4 h-4 text-muted-foreground" />
@@ -92,6 +145,7 @@ function SessionCard({
   onToggle: () => void;
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className={`group flex items-center bg-card border rounded-xl p-4 cursor-pointer transition-all ${
@@ -113,18 +167,32 @@ function SessionCard({
         <div className="flex items-baseline justify-between mb-1">
           <h3 className="font-bold text-base truncate">{session.name}</h3>
           <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">
-            {format(parseISO(session.date), "d MMM", { locale: fr })}
+            {format(parseISO(session.date), "d MMM", { locale: frLocale })}
           </span>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <Users className="w-3 h-3" />
-            <span>{session.participantCount} athlète{session.participantCount !== 1 ? "s" : ""}</span>
+            <span>{session.participantCount} {session.participantCount !== 1 ? t.athletes_plural : t.athlete}</span>
           </div>
           {session.defaultDist && (
             <span className="font-mono text-primary font-medium">{session.defaultDist}m</span>
           )}
         </div>
+        {(session.club || session.group) && (
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {session.club && (
+              <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                {session.club}
+              </span>
+            )}
+            {session.group && (
+              <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/10 text-violet-500 border border-violet-500/20">
+                {session.group}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1 ml-3">
@@ -138,7 +206,7 @@ function SessionCard({
 // ── Vue liste ──────────────────────────────────────────────────────────────────
 
 function ListView({
-  sessions, selectedIds, onToggle, onToggleAll, onNavigate, selectionMode, onToggleSelectionMode, onDelete,
+  sessions, selectedIds, onToggle, onToggleAll, onNavigate, selectionMode, onToggleSelectionMode, onDelete, lang,
 }: {
   sessions: Session[];
   selectedIds: Set<string>;
@@ -148,9 +216,11 @@ function ListView({
   selectionMode: boolean;
   onToggleSelectionMode: () => void;
   onDelete: () => void;
+  lang: string;
 }) {
+  const t = useT();
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
-  const groups = groupSessions(sessions, groupBy);
+  const groups = groupSessions(sessions, groupBy, lang);
   const allSelected = sessions.length > 0 && selectedIds.size === sessions.length;
   const [openGroups, setOpenGroups] = useState<Set<string>>(() =>
     new Set(groups.length > 0 ? [groups[0].label] : [])
@@ -179,7 +249,7 @@ function ListView({
               onCheckedChange={onToggleAll}
               className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
             />
-            <span>Tout sélectionner</span>
+            <span>{t.selectAll}</span>
           </div>
         ) : <div />}
 
@@ -201,7 +271,7 @@ function ListView({
                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
             }`}
           >
-            {selectionMode ? "Annuler" : "Sélectionner"}
+            {selectionMode ? t.deselect : t.select}
           </button>
 
           <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs">
@@ -211,7 +281,7 @@ function ListView({
                 groupBy === "day" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Jour
+              {t.day}
             </button>
             <button
               onClick={() => setGroupBy("month")}
@@ -219,7 +289,7 @@ function ListView({
                 groupBy === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Mois
+              {t.month}
             </button>
           </div>
         </div>
@@ -295,18 +365,32 @@ function ListView({
                       <div className="flex items-baseline justify-between">
                         <span className="font-semibold truncate">{s.name}</span>
                         <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">
-                          {format(parseISO(s.date), "d MMM", { locale: fr })}
+                          {format(parseISO(s.date), "d MMM", { locale: frLocale })}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                         <div className="flex items-center gap-1">
                           <Users className="w-3 h-3" />
-                          <span>{s.participantCount} athlète{s.participantCount !== 1 ? "s" : ""}</span>
+                          <span>{s.participantCount} {s.participantCount !== 1 ? t.athletes_plural : t.athlete}</span>
                         </div>
                         {s.defaultDist && (
                           <span className="font-mono text-primary font-medium">{s.defaultDist}m</span>
                         )}
                       </div>
+                      {(s.club || s.group) && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {s.club && (
+                            <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                              {s.club}
+                            </span>
+                          )}
+                          {s.group && (
+                            <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-500/10 text-violet-500 border border-violet-500/20">
+                              {s.group}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 ml-3">
                       {!selectionMode && <ExportSessionButton session={s} />}
@@ -335,18 +419,21 @@ function ListView({
 // ── Vue calendrier ─────────────────────────────────────────────────────────────
 
 function SessionsCalendarView({
-  sessions, onNavigate,
+  sessions, onNavigate, lang,
 }: {
   sessions: Session[];
   onNavigate: (id: string) => void;
+  lang: string;
 }) {
+  const t = useT();
+  const locale = lang === "fr" ? frLocale : undefined;
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
-  const calStart = startOfWeek(monthStart, { locale: fr });
-  const calEnd = endOfWeek(monthEnd, { locale: fr });
+  const calStart = startOfWeek(monthStart, { locale: frLocale });
+  const calEnd = endOfWeek(monthEnd, { locale: frLocale });
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
 
   const sessionsByDate = new Map<string, Session[]>();
@@ -356,7 +443,9 @@ function SessionsCalendarView({
     sessionsByDate.get(key)!.push(s);
   }
 
-  const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+  const dayNames = lang === "fr"
+    ? ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   const selectedDaySessions = selectedDay
     ? sessions.filter(s => isSameDay(parseISO(s.date), selectedDay))
@@ -373,7 +462,7 @@ function SessionsCalendarView({
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <h3 className="font-semibold text-sm capitalize">
-            {format(currentMonth, "MMMM yyyy", { locale: fr })}
+            {format(currentMonth, "MMMM yyyy", { locale })}
           </h3>
           <Button
             variant="ghost" size="sm" className="h-8 w-8 p-0"
@@ -435,13 +524,17 @@ function SessionsCalendarView({
         <div>
           <div className="flex items-center gap-2 mb-2 px-1">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {format(selectedDay, "EEEE d MMMM", { locale: fr })}
+              {format(selectedDay, "EEEE d MMMM", { locale })}
             </span>
             <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground">{selectedDaySessions.length} session{selectedDaySessions.length > 1 ? "s" : ""}</span>
+            <span className="text-xs text-muted-foreground">
+              {selectedDaySessions.length} {t.navSessions.toLowerCase()}
+            </span>
           </div>
           {selectedDaySessions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Aucune session ce jour-là.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {lang === "fr" ? "Aucune session ce jour-là." : "No session on this day."}
+            </p>
           ) : (
             <div className="space-y-2">
               {selectedDaySessions.map(s => (
@@ -455,12 +548,14 @@ function SessionsCalendarView({
       {!selectedDay && (
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3">
-            {format(currentMonth, "MMMM yyyy", { locale: fr })}
+            {format(currentMonth, "MMMM yyyy", { locale })}
           </p>
           {(() => {
             const monthSessions = sessions.filter(s => isSameMonth(parseISO(s.date), currentMonth));
             if (monthSessions.length === 0)
-              return <p className="text-sm text-muted-foreground">Aucune session ce mois.</p>;
+              return <p className="text-sm text-muted-foreground">
+                {lang === "fr" ? "Aucune session ce mois." : "No sessions this month."}
+              </p>;
             return (
               <div className="space-y-2">
                 {monthSessions.map(s => (
@@ -479,17 +574,29 @@ function SessionsCalendarView({
 
 export default function Sessions() {
   const { data: sessions, isLoading } = useListSessions();
+  const clubs = useListClubs();
+  const groups = useListGroups();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectionMode, setSelectionMode] = useState(false);
+  const [filterClub, setFilterClub] = useState<string>("");
+  const [filterGroup, setFilterGroup] = useState<string>("");
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const bulkDelete = useBulkDeleteSessions();
   const { toast } = useToast();
+  const t = useT();
+  const { lang } = useLang();
+
+  const filteredSessions = (sessions ?? []).filter(s => {
+    if (filterClub && s.club !== filterClub) return false;
+    if (filterGroup && s.group !== filterGroup) return false;
+    return true;
+  });
 
   const toggleSelectionMode = () => {
     setSelectionMode(prev => {
-      if (prev) setSelectedIds(new Set()); // vide la sélection en quittant
+      if (prev) setSelectedIds(new Set());
       return !prev;
     });
   };
@@ -529,9 +636,69 @@ export default function Sessions() {
     <div className="flex flex-col h-full">
       <div className="px-4 pt-4 pb-3 border-b border-border bg-card shrink-0">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-xl font-bold tracking-tight uppercase">Sessions</h2>
+          <h2 className="text-xl font-bold tracking-tight uppercase">{t.sessionsTitle}</h2>
           <CreateSessionDialog />
         </div>
+
+        {/* Club / Group filters */}
+        {(clubs.length > 0 || groups.length > 0) && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {clubs.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  onClick={() => setFilterClub("")}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                    !filterClub
+                      ? "bg-blue-500/10 text-blue-500 border-blue-500/30 font-semibold"
+                      : "border-border text-muted-foreground hover:border-blue-400/40"
+                  }`}
+                >
+                  {t.allClubs}
+                </button>
+                {clubs.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setFilterClub(prev => prev === c ? "" : c)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                      filterClub === c
+                        ? "bg-blue-500/20 text-blue-500 border-blue-500/40 font-semibold"
+                        : "border-border text-muted-foreground hover:border-blue-400/40"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+            {groups.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  onClick={() => setFilterGroup("")}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                    !filterGroup
+                      ? "bg-violet-500/10 text-violet-500 border-violet-500/30 font-semibold"
+                      : "border-border text-muted-foreground hover:border-violet-400/40"
+                  }`}
+                >
+                  {t.allGroups}
+                </button>
+                {groups.map(g => (
+                  <button
+                    key={g}
+                    onClick={() => setFilterGroup(prev => prev === g ? "" : g)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                      filterGroup === g
+                        ? "bg-violet-500/20 text-violet-500 border-violet-500/40 font-semibold"
+                        : "border-border text-muted-foreground hover:border-violet-400/40"
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
           <button
@@ -541,7 +708,7 @@ export default function Sessions() {
             onClick={() => setViewMode("list")}
           >
             <List className="w-3.5 h-3.5" />
-            Liste
+            {t.listView}
           </button>
           <button
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
@@ -550,7 +717,7 @@ export default function Sessions() {
             onClick={() => setViewMode("calendar")}
           >
             <CalendarIcon className="w-3.5 h-3.5" />
-            Calendrier
+            {t.calendarView}
           </button>
         </div>
       </div>
@@ -568,17 +735,17 @@ export default function Sessions() {
               </div>
             ))}
           </div>
-        ) : sessions?.length === 0 ? (
+        ) : filteredSessions.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <div className="bg-card inline-flex p-4 rounded-full mb-4 border border-border">
               <CalendarIcon className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-sm font-medium mb-1">Aucune session</p>
-            <p className="text-xs text-muted-foreground">Créez votre première session d'entraînement.</p>
+            <p className="text-sm font-medium mb-1">{t.noSessions}</p>
+            <p className="text-xs text-muted-foreground">{t.noSessionsHint}</p>
           </div>
         ) : viewMode === "list" ? (
           <ListView
-            sessions={sessions ?? []}
+            sessions={filteredSessions}
             selectedIds={selectedIds}
             onToggle={toggleSelect}
             onToggleAll={toggleAll}
@@ -586,9 +753,10 @@ export default function Sessions() {
             selectionMode={selectionMode}
             onToggleSelectionMode={toggleSelectionMode}
             onDelete={handleDelete}
+            lang={lang}
           />
         ) : (
-          <SessionsCalendarView sessions={sessions ?? []} onNavigate={navigateTo} />
+          <SessionsCalendarView sessions={filteredSessions} onNavigate={navigateTo} lang={lang} />
         )}
       </div>
 
@@ -602,7 +770,11 @@ function CreateSessionDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [club, setClub] = useState("");
+  const [group, setGroup] = useState("");
   const { data: participants } = useListParticipants();
+  const allClubs = useListClubs();
+  const allGroups = useListGroups();
   const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set());
   const [newAthleteeName, setNewAthleteName] = useState("");
   const createSession = useCreateSession();
@@ -610,22 +782,32 @@ function CreateSessionDialog() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const t = useT();
 
   const handleCreate = () => {
     if (!name || !date) return;
     const defaultDist = parseDistance(name);
     createSession.mutate({
-      data: { name, date, defaultDist, participantIds: Array.from(selectedParticipants) }
+      data: {
+        name,
+        date,
+        defaultDist,
+        participantIds: Array.from(selectedParticipants),
+        club: club.trim() || null,
+        group: group.trim() || null,
+      }
     }, {
       onSuccess: (res) => {
         setOpen(false);
         setName("");
+        setClub("");
+        setGroup("");
         setSelectedParticipants(new Set());
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
         setLocation(`/sessions/${res.id}/chrono`);
       },
       onError: (err) => {
-        toast({ title: "Erreur Firestore", description: String(err), variant: "destructive" });
+        toast({ title: t.error, description: String(err), variant: "destructive" });
       },
     });
   };
@@ -638,7 +820,7 @@ function CreateSessionDialog() {
         queryClient.invalidateQueries({ queryKey: getListParticipantsQueryKey() });
         setNewAthleteName("");
         setSelectedParticipants(prev => new Set([...prev, created.id]));
-        toast({ title: `Athlète "${created.name}" ajouté` });
+        toast({ title: t.athleteAdded(created.name) });
       }
     });
   };
@@ -657,24 +839,47 @@ function CreateSessionDialog() {
       <DialogTrigger asChild>
         <Button size="sm" className="font-bold">
           <Plus className="w-4 h-4 mr-1" />
-          NOUVELLE SESSION
+          {t.newSession}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Créer une session</DialogTitle>
+          <DialogTitle>{t.createSession}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="name">Nom de la session (ex : 10x400m)</Label>
+            <Label htmlFor="name">{t.sessionName}</Label>
             <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="10x400m" className="font-mono" />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="date">Date</Label>
+            <Label htmlFor="date">{t.sessionDate}</Label>
             <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
+          {/* Club and Group */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="club">{t.sessionClub}</Label>
+              <AutocompleteInput
+                id="club"
+                value={club}
+                onChange={setClub}
+                placeholder={t.clubPlaceholder}
+                suggestions={allClubs}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="group">{t.sessionGroup}</Label>
+              <AutocompleteInput
+                id="group"
+                value={group}
+                onChange={setGroup}
+                placeholder={t.groupPlaceholder}
+                suggestions={allGroups}
+              />
+            </div>
+          </div>
           <div className="grid gap-2 mt-2">
-            <Label>Athlètes</Label>
+            <Label>{t.athletes}</Label>
             <div className="max-h-[160px] overflow-y-auto space-y-2 border border-border rounded-md p-2">
               {participants?.map(p => (
                 <div key={p.id} className="flex items-center space-x-2">
@@ -683,12 +888,12 @@ function CreateSessionDialog() {
                 </div>
               ))}
               {participants?.length === 0 && (
-                <div className="text-sm text-muted-foreground p-2">Aucun athlète. Ajoutez-en ci-dessous.</div>
+                <div className="text-sm text-muted-foreground p-2">{t.noAthletes}</div>
               )}
             </div>
             <div className="flex gap-2 mt-1">
               <Input
-                placeholder="Nouveau nom d'athlète..."
+                placeholder={t.newAthleteName}
                 value={newAthleteeName}
                 onChange={e => setNewAthleteName(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleAddAthlete()}
@@ -705,9 +910,9 @@ function CreateSessionDialog() {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>{t.cancel}</Button>
           <Button onClick={handleCreate} disabled={!name || !date || createSession.isPending}>
-            Créer et démarrer
+            {t.createAndStart}
           </Button>
         </DialogFooter>
       </DialogContent>

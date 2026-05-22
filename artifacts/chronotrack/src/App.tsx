@@ -20,6 +20,7 @@ import ShareView from "@/pages/share";
 import Onboarding from "@/components/onboarding";
 import NotFound from "@/pages/not-found";
 import { AlertTriangle, Clock } from "lucide-react";
+import { LangProvider } from "@/lib/i18n";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 
@@ -137,16 +138,18 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <AuthProvider onUserChange={handleUserChange}>
-        <QueryClientProvider client={queryClientRef.current}>
-          <TooltipProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
-        </QueryClientProvider>
-      </AuthProvider>
+      <LangProvider>
+        <AuthProvider onUserChange={handleUserChange}>
+          <QueryClientProvider client={queryClientRef.current}>
+            <TooltipProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+            </TooltipProvider>
+          </QueryClientProvider>
+        </AuthProvider>
+      </LangProvider>
     </ErrorBoundary>
   );
 }
