@@ -29,6 +29,9 @@ jobs:
         run: |
           mkdir -p ~/.android
           echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+          echo "=== Keystore info (alias & SHA-1) ==="
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | grep -E "Alias name|SHA1:" || \
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | head -40
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -44,6 +47,12 @@ jobs:
 
       - name: Build debug APK
         run: cd artifacts/chronotrack/android && ./gradlew assembleDebug --no-daemon
+
+      - name: Verify APK SHA-1
+        run: |
+          APK="artifacts/chronotrack/android/app/build/outputs/apk/debug/app-debug.apk"
+          echo "=== APK certificate SHA-1 ==="
+          keytool -printcert -jarfile "$APK" | grep -E "SHA1:|SHA-1:" || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
