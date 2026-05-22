@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Crown connector (vertical bar linking cap to body) -->
+    <path
+        android:pathData="M51,34 L51,40 L57,40 L57,34 Z"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Crown cap (rounded rectangle at top) -->
+    <path
+        android:pathData="M46,26 Q46,22 54,22 Q62,22 62,26 L62,34 L46,34 Z"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Left side start button -->
+    <path
+        android:pathData="M26,53 Q24,53 24,59 Q24,65 26,65 L31,65 Q33,65 33,59 Q33,53 31,53 Z"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Body circle — dark fill -->
+    <path
+        android:pathData="M54,38 A21,21 0 1,0 54.001,38 Z"
+        android:fillColor="#162040"/>
+
+    <!-- Body circle — white border -->
+    <path
+        android:pathData="M54,38 A21,21 0 1,0 54.001,38 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"/>
+
+    <!-- Electric blue progress arc: 12 o'clock → ~4 o'clock (120° clockwise) -->
+    <!-- Start: (54, 38)  End: (72.19, 69.5) -->
+    <path
+        android:pathData="M54,38 A21,21 0 0,1 72.2,69.5"
+        android:fillColor="#00000000"
+        android:strokeColor="#3B82F6"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"/>
+
+    <!-- Tick at 12 o'clock -->
+    <path
+        android:pathData="M54,38 L54,43"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"/>
+
+    <!-- Tick at 3 o'clock (54+21=75, 59) -->
+    <path
+        android:pathData="M75,59 L70,59"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"/>
+
+    <!-- Tick at 6 o'clock (54, 59+21=80) -->
+    <path
+        android:pathData="M54,80 L54,75"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"/>
+
+    <!-- Tick at 9 o'clock (54-21=33, 59) -->
+    <path
+        android:pathData="M33,59 L38,59"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"/>
+
+    <!-- Minute hand — pointing to 12 (straight up) -->
+    <path
+        android:pathData="M54,59 L54,45"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"/>
+
+    <!-- Second hand — blue, pointing to ~10s (60° clockwise from 12) -->
+    <!-- End: x=54+15*sin60=67, y=59-15*cos60=51.5 -->
+    <path
+        android:pathData="M54,59 L67,51.5"
+        android:strokeColor="#60A5FA"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"/>
+
+    <!-- Center dot -->
+    <path
+        android:pathData="M54,59 A3,3 0 1,0 54.001,59 Z"
+        android:fillColor="#FFFFFF"/>
+
+</vector>
