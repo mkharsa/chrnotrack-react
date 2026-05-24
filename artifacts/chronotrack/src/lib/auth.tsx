@@ -1,7 +1,11 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from "firebase/auth";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { auth } from "./firebase";
 import { trackUserLogin } from "./admin-tracking";
+
+const isNative = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+  .Capacitor?.isNativePlatform?.();
 
 type AuthCtx = {
   user: User | null;
@@ -24,7 +28,11 @@ export function AuthProvider({ children, onUserChange }: { children: React.React
     });
   }, []);
 
-  const signOut = () => firebaseSignOut(auth);
+  const signOut = async () => {
+    // Sur Android/iOS : déconnecte aussi la session native Firebase + Google
+    if (isNative) await FirebaseAuthentication.signOut().catch(() => {});
+    await firebaseSignOut(auth);
+  };
 
   return (
     <AuthContext.Provider value={{ user, loading, signOut }}>
