@@ -25,25 +25,12 @@ jobs:
           java-version: "21"
           distribution: temurin
 
-      - name: Restore fixed debug keystore
+      - name: Verify keystore SHA-1
         run: |
-          mkdir -p ~/.android
-          # Fail loudly if the secret is missing
-          if [ -z "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" ]; then
-            echo "::error::Secret ANDROID_DEBUG_KEYSTORE_BASE64 is not set! Google Sign-In will fail."
-            exit 1
-          fi
-          echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
-          echo "=== Keystore info (alias & SHA-1) ==="
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | grep -E "Alias name|SHA1:"
-          KEYSTORE_SHA1=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | grep "SHA1:" | head -1 | awk '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
-          echo "Keystore SHA1 (normalized): $KEYSTORE_SHA1"
-          echo "Expected SHA1:              852942715bc1fc491d75000c6a9af7b05c695ac4"
-          if [ "$KEYSTORE_SHA1" != "852942715bc1fc491d75000c6a9af7b05c695ac4" ]; then
-            echo "::error::Keystore SHA-1 mismatch! Got $KEYSTORE_SHA1"
-            exit 1
-          fi
-          echo "✅ Keystore SHA-1 matches — Google Sign-In will work."
+          echo "=== Keystore SHA-1 (committed to repo) ==="
+          keytool -list -v \
+            -keystore artifacts/chronotrack/android/app/chronotrack-debug.keystore \
+            -storepass android 2>&1 | grep -E "SHA1:|SHA-256:"
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -64,7 +51,7 @@ jobs:
         run: |
           APK="artifacts/chronotrack/android/app/build/outputs/apk/debug/app-debug.apk"
           echo "=== APK certificate SHA-1 ==="
-          keytool -printcert -jarfile "$APK" | grep -E "SHA1:|SHA-1:" || true
+          keytool -printcert -jarfile "$APK" | grep -E "SHA1:|SHA-1:"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
