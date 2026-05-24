@@ -14,11 +14,27 @@
       },
       "oauth_client": [
         {
+          "client_id": "515465540862-2l9dailpe3ct7lgto4u8mjs9g653cud8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "chrono.track",
+            "certificate_hash": "626bc1eab145cfb95da8eca2f41f877037656d6b"
+          }
+        },
+        {
           "client_id": "515465540862-fcsc0ts6ekh8ok0v5ca9f7a1399mr8ea.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "chrono.track",
             "certificate_hash": "852942715bc1fc491d75000c6a9af7b05c695ac4"
+          }
+        },
+        {
+          "client_id": "515465540862-jr6si770g548vf4ng991nkk4f6atq59l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "chrono.track",
+            "certificate_hash": "bbdd620a02927d2a8ee5c059e84aa2ba3c297ea9"
           }
         },
         {
