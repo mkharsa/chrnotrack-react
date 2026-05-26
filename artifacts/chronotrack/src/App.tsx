@@ -1,4 +1,4 @@
-import { useRef, Component, type ReactNode } from "react";
+import { useRef, useState, Component, type ReactNode } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -132,15 +132,14 @@ function Router() {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
-  const queryClientRef = useRef<QueryClient | null>(null);
-  if (!queryClientRef.current) queryClientRef.current = makeQueryClient();
-  const handleUserChange = () => { queryClientRef.current = makeQueryClient(); };
+  const [queryClient, setQueryClient] = useState(() => makeQueryClient());
+  const handleUserChange = () => setQueryClient(makeQueryClient());
 
   return (
     <ErrorBoundary>
       <LangProvider>
         <AuthProvider onUserChange={handleUserChange}>
-          <QueryClientProvider client={queryClientRef.current}>
+          <QueryClientProvider client={queryClient}>
             <TooltipProvider>
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
                 <Router />
