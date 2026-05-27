@@ -313,6 +313,8 @@ function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantN
           date: plan.date,
           defaultDist: ex.dist ?? null,
           participantIds: plan.participantIds,
+          club: plan.club ?? null,
+          group: plan.group ?? null,
         },
       });
       updatedExercises[i] = { ...ex, sessionId: result.id };
