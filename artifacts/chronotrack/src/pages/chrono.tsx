@@ -27,6 +27,9 @@ type ParticipantState = {
   currentMs: number;
   currentLaps: number[];
   reps: RepRecord[];
+  // Departure interval timer — starts with each rep, keeps running after stop
+  splitStartTime: number | null;
+  splitMs: number;
 };
 
 export default function Chrono() {
@@ -51,7 +54,7 @@ export default function Chrono() {
   const addAthleteToLocal = useCallback((spId: string, pid: string, name: string) => {
     setParticipants(prev => {
       if (prev.some(p => p.spId === spId)) return prev;
-      return [...prev, { spId, pid, name, selected: false, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [] }];
+      return [...prev, { spId, pid, name, selected: false, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [], splitStartTime: null, splitMs: 0 }];
     });
     queryClient.invalidateQueries({ queryKey: getGetSessionQueryKey(sessionId) });
   }, [queryClient, sessionId]);
@@ -73,6 +76,8 @@ export default function Chrono() {
             currentMs: reps.length > 0 ? reps[reps.length - 1].timeMs : 0,
             currentLaps: [],
             reps,
+            splitStartTime: null,
+            splitMs: 0,
           };
         })
       );
@@ -80,7 +85,7 @@ export default function Chrono() {
     }
   }, [session, participants.length, sessionId]);
 
-  // Single shared interval — ticks global timer + all running athletes
+  // Single shared interval — ticks global timer + all running/split athletes
   useEffect(() => {
     intervalRef.current = window.setInterval(() => {
       const now = Date.now();
@@ -88,10 +93,13 @@ export default function Chrono() {
         setGlobalMs(now - globalStartTime);
       }
       setParticipants(prev => {
-        if (!prev.some(p => p.running)) return prev;
-        return prev.map(p =>
-          p.running && p.startTime !== null ? { ...p, currentMs: now - p.startTime } : p
-        );
+        const hasActive = prev.some(p => p.running || p.splitStartTime !== null);
+        if (!hasActive) return prev;
+        return prev.map(p => ({
+          ...p,
+          currentMs: p.running && p.startTime !== null ? now - p.startTime : p.currentMs,
+          splitMs: p.splitStartTime !== null ? now - p.splitStartTime : p.splitMs,
+        }));
       });
     }, 16);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
@@ -145,10 +153,11 @@ export default function Chrono() {
   // ── Individual athlete controls ───────────────────────────────────────
 
   const startOne = useCallback((spId: string) => {
+    const now = Date.now();
     setParticipants(prev =>
       prev.map(p =>
         p.spId === spId
-          ? { ...p, running: true, startTime: Date.now(), currentMs: 0, currentLaps: [] }
+          ? { ...p, running: true, startTime: now, currentMs: 0, currentLaps: [], splitStartTime: now, splitMs: 0 }
           : p
       )
     );
@@ -191,7 +200,7 @@ export default function Chrono() {
     setParticipants(prev =>
       prev.map(p =>
         p.selected && !p.running
-          ? { ...p, running: true, startTime: now, currentMs: 0, currentLaps: [] }
+          ? { ...p, running: true, startTime: now, currentMs: 0, currentLaps: [], splitStartTime: now, splitMs: 0 }
           : p
       )
     );
@@ -236,7 +245,7 @@ export default function Chrono() {
   const handleReset = () => {
     if (sessionId) localStorage.removeItem(`chrono-${sessionId}`);
     setParticipants(prev =>
-      prev.map(p => ({ ...p, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [], selected: false }))
+      prev.map(p => ({ ...p, running: false, startTime: null, currentMs: 0, currentLaps: [], reps: [], selected: false, splitStartTime: null, splitMs: 0 }))
     );
     handleGlobalReset();
   };
@@ -366,6 +375,8 @@ export default function Chrono() {
             onToggleSelect={toggleSelect}
             expandedReps={expandedReps}
             onToggleRep={toggleRepExpanded}
+            splitMs={p.splitMs}
+            hasSplit={p.splitStartTime !== null}
           />
         ))}
         {participants.length === 0 && (
@@ -485,6 +496,8 @@ function AthleteCard({
   onToggleSelect,
   expandedReps,
   onToggleRep,
+  splitMs,
+  hasSplit,
 }: {
   participant: ParticipantState;
   onStart: (spId: string) => void;
@@ -493,12 +506,16 @@ function AthleteCard({
   onToggleSelect: (spId: string) => void;
   expandedReps: Set<string>;
   onToggleRep: (key: string) => void;
+  splitMs: number;
+  hasSplit: boolean;
 }) {
   const t = useT();
   const avgMs =
     p.reps.length > 0
       ? Math.round(p.reps.reduce((s, r) => s + r.timeMs, 0) / p.reps.length)
       : null;
+
+  const perfMs = p.running ? p.currentMs : p.reps.length > 0 ? p.reps[p.reps.length - 1].timeMs : 0;
 
   return (
     <div className={`rounded-xl border transition-all ${
@@ -508,7 +525,8 @@ function AthleteCard({
         ? "border-primary/30 bg-primary/[0.03]"
         : "border-border bg-card"
     }`}>
-      <div className="flex items-center gap-3 p-3">
+      {/* ── Top row: avatar / name / buttons ── */}
+      <div className="flex items-center gap-3 p-3 pb-2">
         <Checkbox
           checked={p.selected}
           onCheckedChange={() => onToggleSelect(p.spId)}
@@ -521,11 +539,6 @@ function AthleteCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{p.name}</div>
-          <div className={`font-mono text-xl font-bold tabular-nums tracking-tight ${
-            p.running ? "text-primary" : "text-muted-foreground"
-          }`}>
-            {formatTime(p.running ? p.currentMs : p.reps.length > 0 ? p.reps[p.reps.length - 1].timeMs : 0)}
-          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {p.running ? (
@@ -561,6 +574,51 @@ function AthleteCard({
           )}
         </div>
       </div>
+
+      {/* ── Dual chrono row ── */}
+      {hasSplit ? (
+        <div className="mx-3 mb-3 grid grid-cols-2 gap-2">
+          {/* Departure interval chrono */}
+          <div className={`rounded-lg px-3 py-2 flex flex-col items-center border ${
+            p.running
+              ? "bg-blue-500/10 border-blue-500/30"
+              : "bg-muted/60 border-border"
+          }`}>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-0.5">
+              Départ
+            </span>
+            <span className={`font-mono text-lg font-black tabular-nums tracking-tight ${
+              p.running ? "text-blue-400" : "text-blue-300/70"
+            }`}>
+              {formatTime(splitMs)}
+            </span>
+          </div>
+          {/* Performance chrono */}
+          <div className={`rounded-lg px-3 py-2 flex flex-col items-center border ${
+            p.running
+              ? "bg-primary/10 border-primary/30"
+              : "bg-muted/60 border-border"
+          }`}>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-primary mb-0.5">
+              Perf
+            </span>
+            <span className={`font-mono text-lg font-black tabular-nums tracking-tight ${
+              p.running ? "text-primary" : "text-foreground"
+            }`}>
+              {formatTime(perfMs)}
+            </span>
+          </div>
+        </div>
+      ) : (
+        /* No split yet — single timer (first start hasn't happened) */
+        <div className="px-3 pb-3">
+          <div className={`font-mono text-xl font-bold tabular-nums tracking-tight ${
+            p.running ? "text-primary" : "text-muted-foreground"
+          }`}>
+            {formatTime(perfMs)}
+          </div>
+        </div>
+      )}
 
       {/* Live laps */}
       {p.running && p.currentLaps.length > 0 && (
