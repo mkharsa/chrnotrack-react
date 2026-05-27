@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession,
   useListParticipants, useCreateParticipant, getListParticipantsQueryKey,
-  useGetSession, useListSeries, useListClubs, useListGroups,
+  useGetSession, useListSeries, useListClubs, useListGroups, useUpdateSession,
 } from "@/lib/firebase-api";
 import { exportSessionPDF } from "@/lib/export-pdf";
 import {
@@ -14,10 +14,10 @@ import { fr as frLocale } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, ChevronDown, UserPlus, List, ChevronLeft, Download } from "lucide-react";
+import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, ChevronDown, UserPlus, List, ChevronLeft, Download, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseDistance } from "@/lib/time";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +30,8 @@ type Session = {
   date: string;
   participantCount: number;
   defaultDist?: string | null;
+  club?: string | null;
+  group?: string | null;
 };
 
 type ViewMode = "list" | "calendar";
@@ -168,7 +170,7 @@ function SessionCard({
             {format(parseISO(session.date), "d MMM", { locale: frLocale })}
           </span>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <Users className="w-3 h-3" />
             <span>{session.participantCount} {session.participantCount !== 1 ? t.athletes_plural : t.athlete}</span>
@@ -176,14 +178,83 @@ function SessionCard({
           {session.defaultDist && (
             <span className="font-mono text-primary font-medium">{session.defaultDist}m</span>
           )}
+          {session.club && (
+            <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 font-medium">{session.club}</span>
+          )}
+          {session.group && (
+            <span className="px-1.5 py-0.5 rounded-md bg-violet-500/10 text-violet-600 font-medium">{session.group}</span>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-1 ml-3">
+      <div className="flex items-center gap-1 ml-3" onClick={e => e.stopPropagation()}>
+        <EditSessionDialog session={session} />
         <ExportSessionButton session={session} />
-        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors pointer-events-none" />
       </div>
     </div>
+  );
+}
+
+function EditSessionDialog({ session }: { session: Session }) {
+  const [open, setOpen] = useState(false);
+  const [club, setClub] = useState(session.club ?? "");
+  const [group, setGroup] = useState(session.group ?? "");
+  const clubs = useListClubs();
+  const groups = useListGroups();
+  const updateSession = useUpdateSession();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Sync if session prop changes
+  const handleOpen = (v: boolean) => {
+    if (v) { setClub(session.club ?? ""); setGroup(session.group ?? ""); }
+    setOpen(v);
+  };
+
+  const handleSave = () => {
+    updateSession.mutate(
+      { id: session.id, data: { club: club.trim() || null, group: group.trim() || null } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+          toast({ title: "Séance mise à jour" });
+          setOpen(false);
+        },
+      }
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpen}>
+      <button
+        className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
+        title="Modifier club / groupe"
+        onClick={() => handleOpen(true)}
+      >
+        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+      <DialogContent className="sm:max-w-[340px]">
+        <DialogHeader>
+          <DialogTitle>Club &amp; Groupe</DialogTitle>
+          <DialogDescription className="text-xs">{session.name}</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label htmlFor="edit-club">Club</Label>
+            <AutocompleteInput id="edit-club" value={club} onChange={setClub} placeholder="ex: AC Bordeaux" suggestions={clubs} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-group">Groupe</Label>
+            <AutocompleteInput id="edit-group" value={group} onChange={setGroup} placeholder="ex: Seniors" suggestions={groups} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+          <Button onClick={handleSave} disabled={updateSession.isPending}>Enregistrer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
