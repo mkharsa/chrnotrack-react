@@ -210,6 +210,17 @@ export function useGetSession(id: string) {
   });
 }
 
+export function useUpdateSession() {
+  return useMutation({
+    mutationFn: async ({ id, data }: {
+      id: string;
+      data: Partial<{ defaultDist: string | null; name: string; club: string | null; group: string | null }>;
+    }): Promise<void> => {
+      await updateDoc(userDocRef("sessions", id), data);
+    },
+  });
+}
+
 export function useBulkDeleteSessions() {
   return useMutation({
     mutationFn: async ({ data }: { data: { ids: string[] } }): Promise<void> => {
@@ -333,12 +344,34 @@ export type ProgressionSummary = {
   globalAvgMs: number;
 };
 
-export function useGetProgression(params: { dist: string; groupBy: "session" | "month" }) {
+export function useGetProgression(params: { dist: string; groupBy: "session" | "month"; club?: string; group?: string }) {
   return useQuery({
-    queryKey: ["progression", params.dist, params.groupBy],
+    queryKey: ["progression", params.dist, params.groupBy, params.club ?? "", params.group ?? ""],
     queryFn: async (): Promise<ProgressionData[]> => {
       const snap = await getDocs(query(userCol("series"), orderBy("dateKey", "asc"), limit(500)));
-      const filtered = snap.docs.filter(d => d.data().dist === params.dist);
+
+      // Build sessionId → {club, group} map if we need to filter
+      let allowedSessionIds: Set<string> | null = null;
+      if (params.club || params.group) {
+        const sessSnap = await getDocs(userCol("sessions"));
+        allowedSessionIds = new Set(
+          sessSnap.docs
+            .filter(d => {
+              const sd = d.data();
+              if (params.club && sd.club !== params.club) return false;
+              if (params.group && sd.group !== params.group) return false;
+              return true;
+            })
+            .map(d => d.id)
+        );
+      }
+
+      const filtered = snap.docs.filter(d => {
+        const data = d.data();
+        if (data.dist !== params.dist) return false;
+        if (allowedSessionIds && !allowedSessionIds.has(data.sessionId as string)) return false;
+        return true;
+      });
 
       const participantMap = new Map<string, { name: string; periodData: Map<string, number[]> }>();
 

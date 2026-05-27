@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
-import { useGetSession, useCreateSeries, useAddSessionParticipant, useListParticipants, useCreateParticipant, getGetSessionQueryKey } from "@/lib/firebase-api";
+import { useGetSession, useCreateSeries, useAddSessionParticipant, useListParticipants, useCreateParticipant, useUpdateSession, getGetSessionQueryKey } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,9 +46,11 @@ export default function Chrono() {
   const [globalMs, setGlobalMs] = useState(0);
 
   const createSeries = useCreateSeries();
+  const updateSession = useUpdateSession();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const intervalRef = useRef<number | null>(null);
+  const distSaveTimer = useRef<number | null>(null);
 
   // Add a new athlete to the local state (called after successful API add)
   const addAthleteToLocal = useCallback((spId: string, pid: string, name: string) => {
@@ -276,7 +278,17 @@ export default function Chrono() {
               <span className="text-xs text-muted-foreground uppercase tracking-wider"><ChronoDistLabel /></span>
               <Input
                 value={distance}
-                onChange={e => setDistance(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  setDistance(val);
+                  // Debounce save to Firestore
+                  if (distSaveTimer.current) clearTimeout(distSaveTimer.current);
+                  distSaveTimer.current = window.setTimeout(() => {
+                    if (sessionId && val.trim()) {
+                      updateSession.mutate({ id: sessionId, data: { defaultDist: val.trim() } });
+                    }
+                  }, 800);
+                }}
                 className="h-6 w-20 text-xs font-mono text-primary"
                 placeholder="400"
               />
@@ -518,18 +530,22 @@ function AthleteCard({
   const perfMs = p.running ? p.currentMs : p.reps.length > 0 ? p.reps[p.reps.length - 1].timeMs : 0;
 
   return (
-    <div className={`rounded-xl border transition-all ${
-      p.running
-        ? "border-primary/40 bg-primary/5 shadow-sm"
-        : p.selected
-        ? "border-primary/30 bg-primary/[0.03]"
-        : "border-border bg-card"
-    }`}>
+    <div
+      className={`rounded-xl border transition-all cursor-pointer select-none ${
+        p.running
+          ? "border-primary/40 bg-primary/5 shadow-sm"
+          : p.selected
+          ? "border-primary/30 bg-primary/[0.03]"
+          : "border-border bg-card"
+      }`}
+      onClick={() => onToggleSelect(p.spId)}
+    >
       {/* ── Top row: avatar / name / buttons ── */}
       <div className="flex items-center gap-3 p-3 pb-2">
         <Checkbox
           checked={p.selected}
           onCheckedChange={() => onToggleSelect(p.spId)}
+          onClick={e => e.stopPropagation()}
           className="shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
         />
         <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
@@ -540,7 +556,7 @@ function AthleteCard({
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{p.name}</div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
           {p.running ? (
             <>
               <Button

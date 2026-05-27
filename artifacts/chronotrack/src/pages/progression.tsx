@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useGetProgression, useGetProgressionSummary, useListDistances, useListSeries, createPublicShare, type ProgressionPeriod } from "@/lib/firebase-api";
+import { useGetProgression, useGetProgressionSummary, useListDistances, useListSeries, useListClubs, useListGroups, createPublicShare, type ProgressionPeriod } from "@/lib/firebase-api";
 import { formatTime } from "@/lib/time";
 import { exportProgressionPDF } from "@/lib/export-pdf";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -64,6 +64,8 @@ export default function Progression() {
   const [groupBy, setGroupBy] = useState<"session" | "month">("session");
   const [distance, setDistance] = useState<string>("");
   const [selectedAthlete, setSelectedAthlete] = useState<string>("all");
+  const [selectedClub, setSelectedClub] = useState<string>("all");
+  const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [sharingId, setSharingId] = useState<string | null>(null);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
   const { toast } = useToast();
@@ -77,6 +79,8 @@ export default function Progression() {
   }, []);
 
   const { data: distances } = useListDistances();
+  const clubs = useListClubs();
+  const groups = useListGroups();
 
   useEffect(() => {
     if (distances && distances.length > 0 && !distances.includes(distance)) {
@@ -85,7 +89,12 @@ export default function Progression() {
   }, [distances]);
 
   const { data: summary } = useGetProgressionSummary();
-  const { data: progression, isLoading: isProgLoading } = useGetProgression({ dist: distance, groupBy });
+  const { data: progression, isLoading: isProgLoading } = useGetProgression({
+    dist: distance,
+    groupBy,
+    club: selectedClub !== "all" ? selectedClub : undefined,
+    group: selectedGroup !== "all" ? selectedGroup : undefined,
+  });
   const { data: allSeries } = useListSeries();
 
   // Filter progression by selected athlete
@@ -167,6 +176,36 @@ export default function Progression() {
         )}
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Filtre club */}
+          {clubs && clubs.length > 0 && (
+            <Select value={selectedClub} onValueChange={v => { setSelectedClub(v); setSelectedAthlete("all"); }}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Club" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les clubs</SelectItem>
+                {clubs.map((c: string) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Filtre groupe */}
+          {groups && groups.length > 0 && (
+            <Select value={selectedGroup} onValueChange={v => { setSelectedGroup(v); setSelectedAthlete("all"); }}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Groupe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les groupes</SelectItem>
+                {groups.map((g: string) => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           {/* Filtre athlète — toujours visible en premier */}
           {progression && progression.length > 0 && (
             <Select value={selectedAthlete} onValueChange={v => setSelectedAthlete(v)}>
