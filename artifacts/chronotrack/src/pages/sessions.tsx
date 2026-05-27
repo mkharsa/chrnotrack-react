@@ -14,10 +14,11 @@ import { fr as frLocale } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, ChevronDown, UserPlus, List, ChevronLeft, Download, Pencil } from "lucide-react";
+import { Plus, Trash2, Users, Calendar as CalendarIcon, ChevronRight, ChevronDown, UserPlus, List, ChevronLeft, Download, MoreVertical, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseDistance } from "@/lib/time";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -107,35 +108,6 @@ function AutocompleteInput({
 
 // ── Carte session ─────────────────────────────────────────────────────────────
 
-function ExportSessionButton({ session }: { session: Session }) {
-  const { data: detail } = useGetSession(session.id);
-  const { data: allSeries } = useListSeries({ dateKey: session.date });
-  const t = useT();
-
-  const handleExport = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const participants = detail?.participants ?? [];
-    const series = (allSeries ?? [])
-      .filter(s => s.sessionId === session.id)
-      .map(s => ({ id: s.id, dist: s.dist, entries: s.entries }));
-    exportSessionPDF({
-      name: session.name,
-      date: session.date,
-      participants,
-      series,
-    });
-  };
-
-  return (
-    <button
-      className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
-      title={t.exportPdf}
-      onClick={handleExport}
-    >
-      <Download className="w-4 h-4 text-muted-foreground" />
-    </button>
-  );
-}
 
 function SessionCard({
   session, selected, onToggle, onClick,
@@ -187,74 +159,145 @@ function SessionCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 ml-3" onClick={e => e.stopPropagation()}>
-        <EditSessionDialog session={session} />
-        <ExportSessionButton session={session} />
+      <div className="flex items-center gap-1 ml-2 shrink-0" onClick={e => e.stopPropagation()}>
+        <SessionMenu session={session} />
         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors pointer-events-none" />
       </div>
     </div>
   );
 }
 
-function EditSessionDialog({ session }: { session: Session }) {
-  const [open, setOpen] = useState(false);
+function SessionMenu({ session }: { session: Session }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [name, setName] = useState(session.name);
   const [club, setClub] = useState(session.club ?? "");
   const [group, setGroup] = useState(session.group ?? "");
   const clubs = useListClubs();
   const groups = useListGroups();
   const updateSession = useUpdateSession();
+  const deleteSession = useBulkDeleteSessions();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: detail } = useGetSession(session.id);
+  const { data: allSeries } = useListSeries({ dateKey: session.date });
+  const t = useT();
 
-  // Sync if session prop changes
-  const handleOpen = (v: boolean) => {
-    if (v) { setClub(session.club ?? ""); setGroup(session.group ?? ""); }
-    setOpen(v);
+  const openEdit = () => {
+    setName(session.name);
+    setClub(session.club ?? "");
+    setGroup(session.group ?? "");
+    setEditOpen(true);
   };
 
   const handleSave = () => {
     updateSession.mutate(
-      { id: session.id, data: { club: club.trim() || null, group: group.trim() || null } },
+      { id: session.id, data: { name: name.trim() || session.name, club: club.trim() || null, group: group.trim() || null } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
           toast({ title: "Séance mise à jour" });
-          setOpen(false);
+          setEditOpen(false);
         },
       }
     );
   };
 
+  const handleDelete = () => {
+    deleteSession.mutate(
+      { data: { ids: [session.id] } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+          toast({ title: "Séance supprimée" });
+          setDeleteOpen(false);
+        },
+      }
+    );
+  };
+
+  const handleExport = () => {
+    const participants = detail?.participants ?? [];
+    const series = (allSeries ?? [])
+      .filter(s => s.sessionId === session.id)
+      .map(s => ({ id: s.id, dist: s.dist, entries: s.entries }));
+    exportSessionPDF({ name: session.name, date: session.date, participants, series });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
-      <button
-        className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
-        title="Modifier club / groupe"
-        onClick={() => handleOpen(true)}
-      >
-        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-      </button>
-      <DialogContent className="sm:max-w-[340px]">
-        <DialogHeader>
-          <DialogTitle>Club &amp; Groupe</DialogTitle>
-          <DialogDescription className="text-xs">{session.name}</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-2">
-            <Label htmlFor="edit-club">Club</Label>
-            <AutocompleteInput id="edit-club" value={club} onChange={setClub} placeholder="ex: AC Bordeaux" suggestions={clubs} />
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="p-1.5 rounded-lg hover:bg-muted transition-colors" onClick={e => e.stopPropagation()}>
+            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onClick={openEdit}>
+            <Pencil className="w-3.5 h-3.5 mr-2" />
+            Modifier
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleExport}>
+            <Download className="w-3.5 h-3.5 mr-2" />
+            {t.exportPdf}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-2" />
+            Supprimer
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Dialog modifier */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[360px]">
+          <DialogHeader>
+            <DialogTitle>Modifier la séance</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>Nom</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Club</Label>
+              <AutocompleteInput id="edit-club" value={club} onChange={setClub} placeholder="ex: AC Bordeaux" suggestions={clubs} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Groupe</Label>
+              <AutocompleteInput id="edit-group" value={group} onChange={setGroup} placeholder="ex: Seniors" suggestions={groups} />
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-group">Groupe</Label>
-            <AutocompleteInput id="edit-group" value={group} onChange={setGroup} placeholder="ex: Seniors" suggestions={groups} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
-          <Button onClick={handleSave} disabled={updateSession.isPending}>Enregistrer</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Annuler</Button>
+            <Button onClick={handleSave} disabled={updateSession.isPending}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog confirmation suppression */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-[340px]">
+          <DialogHeader>
+            <DialogTitle>Supprimer la séance ?</DialogTitle>
+            <DialogDescription>
+              « {session.name} » sera supprimée définitivement ainsi que toutes ses performances.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteSession.isPending}>
+              <Trash2 className="w-4 h-4 mr-1" />
+              Supprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -438,7 +481,7 @@ function ListView({
                       </div>
                     </div>
                     <div className="flex items-center gap-1 ml-3">
-                      {!selectionMode && <ExportSessionButton session={s} />}
+                      {!selectionMode && <SessionMenu session={s} />}
                       {selectionMode ? (
                         <button
                           className="p-1.5 rounded-lg hover:bg-primary/10 shrink-0 transition-colors"
