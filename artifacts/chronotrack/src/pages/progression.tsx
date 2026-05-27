@@ -161,35 +161,31 @@ export default function Progression() {
         )}
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Filtre club */}
-          {clubs && clubs.length > 0 && (
-            <Select value={selectedClub} onValueChange={v => { setSelectedClub(v); setSelectedAthlete("all"); }}>
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Club" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les clubs</SelectItem>
-                {clubs.map((c: string) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          {/* Filtre club — toujours visible */}
+          <Select value={selectedClub} onValueChange={v => { setSelectedClub(v); setSelectedAthlete("all"); }}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Club" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les clubs</SelectItem>
+              {clubs.map((c: string) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          {/* Filtre groupe */}
-          {groups && groups.length > 0 && (
-            <Select value={selectedGroup} onValueChange={v => { setSelectedGroup(v); setSelectedAthlete("all"); }}>
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Groupe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les groupes</SelectItem>
-                {groups.map((g: string) => (
-                  <SelectItem key={g} value={g}>{g}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          {/* Filtre groupe — toujours visible */}
+          <Select value={selectedGroup} onValueChange={v => { setSelectedGroup(v); setSelectedAthlete("all"); }}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Groupe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les groupes</SelectItem>
+              {groups.map((g: string) => (
+                <SelectItem key={g} value={g}>{g}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Filtre athlète — toujours visible en premier */}
           {progression && progression.length > 0 && (

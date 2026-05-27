@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession,
   useListParticipants, useCreateParticipant, getListParticipantsQueryKey,
-  useGetSession, useListSeries,
+  useGetSession, useListSeries, useListClubs, useListGroups,
 } from "@/lib/firebase-api";
 import { exportSessionPDF } from "@/lib/export-pdf";
 import {
@@ -681,6 +681,8 @@ function CreateSessionDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [club, setClub] = useState("");
+  const [group, setGroup] = useState("");
   const { data: participants } = useListParticipants();
   const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set());
   const [newAthleteeName, setNewAthleteName] = useState("");
@@ -690,6 +692,8 @@ function CreateSessionDialog() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const t = useT();
+  const clubs = useListClubs();
+  const groups = useListGroups();
 
   const handleCreate = () => {
     if (!name || !date) return;
@@ -699,13 +703,16 @@ function CreateSessionDialog() {
         name,
         date,
         defaultDist,
+        club: club.trim() || null,
+        group: group.trim() || null,
         participantIds: Array.from(selectedParticipants),
       }
     }, {
       onSuccess: (res) => {
         setOpen(false);
         setName("");
-
+        setClub("");
+        setGroup("");
         setSelectedParticipants(new Set());
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
         setLocation(`/sessions/${res.id}/chrono`);
@@ -758,6 +765,28 @@ function CreateSessionDialog() {
           <div className="grid gap-2">
             <Label htmlFor="date">{t.sessionDate}</Label>
             <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="club">Club</Label>
+              <AutocompleteInput
+                id="club"
+                value={club}
+                onChange={setClub}
+                placeholder="ex: AC Bordeaux"
+                suggestions={clubs}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="group">Groupe</Label>
+              <AutocompleteInput
+                id="group"
+                value={group}
+                onChange={setGroup}
+                placeholder="ex: Seniors"
+                suggestions={groups}
+              />
+            </div>
           </div>
           <div className="grid gap-2 mt-2">
             <Label>{t.athletes}</Label>
