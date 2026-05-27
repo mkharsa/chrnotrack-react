@@ -302,6 +302,21 @@ export default function Chrono() {
     setParticipants(prev => prev.map(p => ({ ...p, selected: !allSelected })));
   };
 
+  const stopAll = useCallback(() => {
+    const now = Date.now();
+    setParticipants(prev => {
+      const next = prev.map(p => {
+        if (!p.running || p.startTime === null) return p;
+        const finalMs = now - p.startTime;
+        const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
+        saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
+        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep] };
+      });
+      saveRepsToStorage(next);
+      return next;
+    });
+  }, [saveSeries, saveRepsToStorage]);
+
   const handleReset = () => {
     if (sessionId) localStorage.removeItem(`chrono-${sessionId}`);
     setParticipants(prev =>
@@ -323,6 +338,7 @@ export default function Chrono() {
 
   const anySelected = selectedParticipants.length > 0;
   const allSelected = participants.length > 0 && participants.every(p => p.selected);
+  const anyRunning = participants.some(p => p.running);
 
   return (
     <div className="flex flex-col bg-background text-foreground min-h-full">
@@ -402,6 +418,15 @@ export default function Chrono() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                {anyRunning && (
+                  <button
+                    onClick={stopAll}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-white font-black text-sm uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-orange-500/30"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                    Tout arrêter
+                  </button>
+                )}
                 {!globalRunning ? (
                   <button
                     onClick={handleGlobalStart}
