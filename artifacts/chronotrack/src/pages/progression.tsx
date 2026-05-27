@@ -399,37 +399,53 @@ export default function Progression() {
                 avgMs: period.avgMs,
               }));
               const hasEnoughForLine = miniData.length >= 2;
-              const best = p.periods.reduce<number | null>((min, period) =>
+              const bestMs = p.periods.reduce<number | null>((min, period) =>
                 min === null || period.avgMs < min ? period.avgMs : min, null);
+              const totalReps = p.periods.reduce((s, period) => s + period.count, 0);
+              const globalAvg = p.periods.length > 0
+                ? Math.round(p.periods.reduce((s, period) => s + period.avgMs, 0) / p.periods.length)
+                : null;
+
               return (
-                <div key={p.participantId} className="bg-card border border-border rounded-xl overflow-hidden">
-                  {/* En-tête athlète */}
-                  <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                        style={{ background: color }}
-                      >
-                        {p.name.charAt(0).toUpperCase()}
-                      </div>
-                      <h3 className="font-bold text-base">{p.name}</h3>
+                <div key={p.participantId} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+
+                  {/* ── En-tête athlète ── */}
+                  <div className="px-4 pt-4 pb-3 flex items-center gap-3" style={{ borderLeft: `4px solid ${color}` }}>
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0 shadow-sm"
+                      style={{ background: color }}
+                    >
+                      {p.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {best !== null && (
-                        <div className="text-right">
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Meilleur</div>
-                          <div className="font-mono text-sm font-bold text-green-600">{formatTime(best)}</div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-base leading-tight truncate">{p.name}</h3>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {p.periods.length} séance{p.periods.length > 1 ? "s" : ""} · {totalReps} essai{totalReps > 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    {/* Stats clés */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      {bestMs !== null && (
+                        <div className="text-center">
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">🏆 Meilleur</div>
+                          <div className="font-mono text-sm font-black text-green-600">{formatTime(bestMs)}</div>
+                        </div>
+                      )}
+                      {globalAvg !== null && (
+                        <div className="text-center">
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Moy.</div>
+                          <div className="font-mono text-sm font-bold text-foreground">{formatTime(globalAvg)}</div>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Mini graphique individuel */}
+                  {/* ── Mini graphique individuel ── */}
                   {miniData.length > 0 && (
-                    <div className="px-2 pb-2">
-                      <ResponsiveContainer width="100%" height={110}>
-                        <LineChart data={miniData} margin={{ top: 6, right: 12, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <div className="px-2 pb-1 border-t border-border/50 bg-muted/20">
+                      <ResponsiveContainer width="100%" height={90}>
+                        <LineChart data={miniData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                           <XAxis
                             dataKey="label"
                             tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
@@ -461,7 +477,7 @@ export default function Progression() {
                             type="monotone"
                             dataKey="value"
                             stroke={color}
-                            strokeWidth={2}
+                            strokeWidth={2.5}
                             dot={{ r: hasEnoughForLine ? 3.5 : 6, fill: color, strokeWidth: 0 }}
                             activeDot={{ r: 5 }}
                           />
@@ -470,72 +486,100 @@ export default function Progression() {
                     </div>
                   )}
 
-                  {/* Tableau des périodes — déroulable */}
-                  <div className="border-t border-border divide-y divide-border">
+                  {/* ── En-têtes colonnes ── */}
+                  <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 px-4 py-1.5 border-t border-border bg-muted/40">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Séance</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground text-center w-12">Essais</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground text-right w-16">Moy.</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground text-center w-6"></span>
+                  </div>
+
+                  {/* ── Lignes par période ── */}
+                  <div className="divide-y divide-border">
                     {p.periods.map((period, idx) => {
                       const key = `${p.participantId}-${idx}`;
                       const expanded = expandedPeriods.has(key);
-                      const best = period.times.length > 0 ? period.times[0] : null; // sorted asc
-                      const worst = period.times.length > 0 ? period.times[period.times.length - 1] : null;
+                      const periodBest = period.times.length > 0 ? period.times[0] : null;
+                      const periodWorst = period.times.length > 0 ? period.times[period.times.length - 1] : null;
                       return (
                         <div key={idx}>
-                          {/* Ligne principale — cliquable */}
+                          {/* Ligne principale */}
                           <button
-                            className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-muted/40 transition-colors"
+                            className="w-full grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center px-4 py-3 hover:bg-muted/30 transition-colors text-left"
                             onClick={() => togglePeriod(key)}
                           >
-                            <div className="flex-1 text-left">
-                              <div className="font-medium text-sm">{period.label}</div>
-                              <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                {period.count} essai{period.count > 1 ? "s" : ""}
-                                {period.count > 0 && (
-                                  expanded
-                                    ? <ChevronUp className="w-3 h-3" />
-                                    : <ChevronDown className="w-3 h-3" />
-                                )}
-                              </div>
+                            {/* Label séance */}
+                            <div>
+                              <div className="text-sm font-semibold text-foreground leading-tight">{period.label}</div>
+                              {periodBest !== null && (
+                                <div className="text-[10px] text-green-600 font-mono mt-0.5">
+                                  🏆 {formatTime(periodBest)}
+                                </div>
+                              )}
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-mono text-sm">{formatTime(period.avgMs)}</span>
+                            {/* Nb essais */}
+                            <div className="flex items-center justify-center w-12">
+                              <span className="text-xs font-bold bg-muted text-muted-foreground rounded-full px-2 py-0.5 tabular-nums">
+                                {period.count}
+                              </span>
+                            </div>
+                            {/* Moyenne */}
+                            <div className="w-16 text-right">
+                              <span className="font-mono text-sm font-bold text-foreground tabular-nums">
+                                {formatTime(period.avgMs)}
+                              </span>
+                            </div>
+                            {/* Trend + chevron */}
+                            <div className="w-6 flex flex-col items-center gap-0.5">
                               <TrendIcon trend={period.trend} />
+                              {period.count > 0 && (
+                                expanded
+                                  ? <ChevronUp className="w-3 h-3 text-muted-foreground" />
+                                  : <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                              )}
                             </div>
                           </button>
 
                           {/* Détails déroulés */}
                           {expanded && period.times.length > 0 && (
-                            <div className="bg-muted/30 px-4 pb-3 pt-1 space-y-1 border-t border-border/60">
-                              {/* Stats rapides */}
-                              <div className="grid grid-cols-3 gap-2 mb-2">
+                            <div className="bg-muted/20 border-t border-border/60 px-4 py-3 space-y-3">
+                              {/* Stats best / moy / pire */}
+                              <div className="grid grid-cols-3 gap-2">
                                 {[
-                                  { label: "Meilleur", value: best!, color: "text-green-600" },
-                                  { label: "Moyenne", value: period.avgMs, color: "" },
-                                  { label: "Pire", value: worst!, color: "text-red-500" },
+                                  { label: "Meilleur", value: periodBest!, color: "text-green-600", bg: "bg-green-500/10 border-green-500/20" },
+                                  { label: "Moyenne", value: period.avgMs, color: "text-foreground", bg: "bg-card border-border" },
+                                  { label: "Pire", value: periodWorst!, color: "text-red-500", bg: "bg-red-500/10 border-red-500/20" },
                                 ].map(stat => (
-                                  <div key={stat.label} className="text-center bg-card rounded-lg py-1.5">
-                                    <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{stat.label}</div>
-                                    <div className={`font-mono font-bold text-xs ${stat.color}`}>{formatTime(stat.value)}</div>
+                                  <div key={stat.label} className={`text-center rounded-lg py-2 border ${stat.bg}`}>
+                                    <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">{stat.label}</div>
+                                    <div className={`font-mono font-black text-sm ${stat.color}`}>{formatTime(stat.value)}</div>
                                   </div>
                                 ))}
                               </div>
-                              {/* Liste des temps individuels */}
-                              <div className="flex flex-wrap gap-1.5">
+                              {/* Temps individuels avec rang */}
+                              <div className="space-y-1">
                                 {period.times.map((t, ti) => {
-                                  const isBest = t === best;
-                                  const isWorst = t === worst && period.times.length > 1;
+                                  const isBest = t === periodBest;
+                                  const isWorst = t === periodWorst && period.times.length > 1;
                                   return (
-                                    <span
+                                    <div
                                       key={ti}
-                                      className={`font-mono text-xs px-2 py-1 rounded-md border font-semibold ${
+                                      className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-xs ${
                                         isBest
-                                          ? "bg-green-500/10 border-green-500/30 text-green-600"
+                                          ? "bg-green-500/10 text-green-700"
                                           : isWorst
-                                          ? "bg-red-500/10 border-red-500/20 text-red-500"
-                                          : "bg-card border-border text-foreground"
+                                          ? "bg-red-500/8 text-red-600"
+                                          : "bg-card text-foreground"
                                       }`}
                                     >
-                                      {isBest && "🏆 "}
-                                      {formatTime(t)}
-                                    </span>
+                                      <span className="text-muted-foreground tabular-nums w-5">#{ti + 1}</span>
+                                      <span className={`font-mono font-bold text-sm tabular-nums ${isBest ? "text-green-600" : isWorst ? "text-red-500" : ""}`}>
+                                        {formatTime(t)}
+                                      </span>
+                                      <span className="w-5 text-right">
+                                        {isBest ? "🏆" : isWorst ? "⚠️" : ""}
+                                      </span>
+                                    </div>
                                   );
                                 })}
                               </div>
