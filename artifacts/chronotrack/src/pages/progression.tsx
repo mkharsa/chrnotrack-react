@@ -10,15 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 
 type TooltipPayloadEntry = {
@@ -145,18 +142,6 @@ export default function Progression() {
   })();
 
   const hasChart = chartData.length >= 1 && filteredProgression && filteredProgression.length > 0;
-  const isEvolution = chartData.length >= 2;
-
-  // For single-period: one bar per athlete
-  const barData = (() => {
-    if (!filteredProgression || chartData.length !== 1) return [];
-    return filteredProgression.map((p, i) => ({
-      name: p.name,
-      value: p.periods[0] ? msToSec(p.periods[0].avgMs) : null,
-      color: ATHLETE_COLORS[i % ATHLETE_COLORS.length],
-      avgMs: p.periods[0]?.avgMs ?? 0,
-    })).filter(d => d.value !== null);
-  })();
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -305,97 +290,54 @@ export default function Progression() {
           </div>
         ) : (
           <>
-            {/* ── Graphique — masqué quand un athlète est sélectionné ── */}
+            {/* ── Courbe d'évolution — masquée quand un athlète est sélectionné ── */}
             {hasChart && selectedAthlete === "all" && (
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
-                  {isEvolution ? `Évolution — ${distance}m` : `Comparaison — ${distance}m`}
+                  Évolution — {distance}m
                 </p>
                 <p className="text-[10px] text-muted-foreground mb-3">
                   Temps en secondes · plus bas = meilleur
                 </p>
-
-                {isEvolution ? (
-                  /* ── Courbe d'évolution (≥2 séances) ── */
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `${v}s`}
+                      domain={["auto", "auto"]}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    {filteredProgression && filteredProgression.length > 1 && (
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                        formatter={(value) => (
+                          <span style={{ color: "hsl(var(--foreground))" }}>{value}</span>
+                        )}
                       />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(v) => `${v}s`}
-                        domain={["auto", "auto"]}
+                    )}
+                    {filteredProgression?.map((p, i) => (
+                      <Line
+                        key={p.participantId}
+                        type="monotone"
+                        dataKey={p.name}
+                        stroke={ATHLETE_COLORS[i % ATHLETE_COLORS.length]}
+                        strokeWidth={2.5}
+                        dot={{ r: 5, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                        activeDot={{ r: 7 }}
+                        connectNulls
                       />
-                      <Tooltip content={<CustomTooltip />} />
-                      {filteredProgression && filteredProgression.length > 1 && (
-                        <Legend
-                          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                          formatter={(value) => (
-                            <span style={{ color: "hsl(var(--foreground))" }}>{value}</span>
-                          )}
-                        />
-                      )}
-                      {filteredProgression?.map((p, i) => (
-                        <Line
-                          key={p.participantId}
-                          type="monotone"
-                          dataKey={p.name}
-                          stroke={ATHLETE_COLORS[i % ATHLETE_COLORS.length]}
-                          strokeWidth={2.5}
-                          dot={{ r: 4, strokeWidth: 2, fill: "hsl(var(--card))" }}
-                          activeDot={{ r: 6 }}
-                          connectNulls
-                        />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  /* ── Barres comparatives (1 seule séance) ── */
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={barData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(v) => `${v}s`}
-                        domain={[0, "auto"]}
-                      />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null;
-                          const d = payload[0].payload;
-                          return (
-                            <div className="bg-card border border-border rounded-lg shadow-lg p-3 text-xs">
-                              <p className="font-semibold mb-1">{d.name}</p>
-                              <p className="font-mono font-bold" style={{ color: d.color }}>
-                                {formatTime(d.avgMs)}
-                              </p>
-                            </div>
-                          );
-                        }}
-                      />
-                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                        {barData.map((entry, i) => (
-                          <Cell key={i} fill={entry.color} fillOpacity={0.85} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             )}
 
@@ -483,7 +425,7 @@ export default function Progression() {
                   </div>
 
                   {/* Mini graphique individuel */}
-                  {hasEnoughForLine ? (
+                  {miniData.length > 0 && (
                     <div className="px-2 pb-2">
                       <ResponsiveContainer width="100%" height={110}>
                         <LineChart data={miniData} margin={{ top: 6, right: 12, left: -20, bottom: 0 }}>
@@ -520,22 +462,12 @@ export default function Progression() {
                             dataKey="value"
                             stroke={color}
                             strokeWidth={2}
-                            dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
+                            dot={{ r: hasEnoughForLine ? 3.5 : 6, fill: color, strokeWidth: 0 }}
                             activeDot={{ r: 5 }}
                           />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                  ) : (
-                    /* Si 1 seule période — pas de courbe, juste le temps en grand */
-                    miniData.length === 1 && (
-                      <div className="px-4 pb-3 flex items-center gap-3">
-                        <div className="font-mono text-3xl font-bold" style={{ color }}>
-                          {formatTime(miniData[0].avgMs)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{miniData[0].label}</div>
-                      </div>
-                    )
                   )}
 
                   {/* Tableau des périodes — déroulable */}
