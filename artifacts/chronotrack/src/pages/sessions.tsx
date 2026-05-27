@@ -304,15 +304,13 @@ function SessionMenu({ session }: { session: Session }) {
 // ── Vue liste ──────────────────────────────────────────────────────────────────
 
 function ListView({
-  sessions, selectedIds, onToggle, onToggleAll, onNavigate, selectionMode, onToggleSelectionMode, onDelete, lang,
+  sessions, selectedIds, onToggle, onToggleAll, onNavigate, onDelete, lang,
 }: {
   sessions: Session[];
   selectedIds: Set<string>;
   onToggle: (id: string) => void;
   onToggleAll: () => void;
   onNavigate: (id: string) => void;
-  selectionMode: boolean;
-  onToggleSelectionMode: () => void;
   onDelete: () => void;
   lang: string;
 }) {
@@ -337,40 +335,28 @@ function ListView({
     <div className="space-y-2 pb-6">
       {/* Barre contrôles */}
       <div className="flex items-center justify-between mb-3">
-        {selectionMode ? (
-          <div
-            className="flex items-center gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
-            onClick={onToggleAll}
-          >
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={onToggleAll}
-              className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-            />
-            <span>{t.selectAll}</span>
-          </div>
-        ) : <div />}
+        <div
+          className="flex items-center gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer select-none"
+          onClick={onToggleAll}
+        >
+          <Checkbox
+            checked={allSelected}
+            onCheckedChange={onToggleAll}
+            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+          />
+          <span>{selectedIds.size > 0 ? `${selectedIds.size} sélectionnée${selectedIds.size > 1 ? "s" : ""}` : t.selectAll}</span>
+        </div>
 
         <div className="flex items-center gap-2">
-          {selectionMode && selectedIds.size > 0 && (
+          {selectedIds.size > 0 && (
             <button
               onClick={onDelete}
-              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {selectedIds.size}
+              Supprimer ({selectedIds.size})
             </button>
           )}
-          <button
-            onClick={onToggleSelectionMode}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-              selectionMode
-                ? "text-primary bg-primary/10 hover:bg-primary/20"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            {selectionMode ? t.deselect : t.select}
-          </button>
 
           <div className="flex items-center gap-1.5">
             <button
@@ -417,16 +403,14 @@ function ListView({
           <div key={group.label} className="bg-card border border-border rounded-xl overflow-hidden">
             {/* En-tête */}
             <div className="flex items-center px-4 py-3 hover:bg-muted/40 transition-colors">
-              {selectionMode && (
-                <div className="mr-3 shrink-0" onClick={toggleGroupSelect}>
-                  <Checkbox
-                    checked={allGroupSelected}
-                    data-state={someGroupSelected && !allGroupSelected ? "indeterminate" : undefined}
-                    onCheckedChange={() => {}}
-                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                  />
-                </div>
-              )}
+              <div className="mr-3 shrink-0" onClick={toggleGroupSelect}>
+                <Checkbox
+                  checked={allGroupSelected}
+                  data-state={someGroupSelected && !allGroupSelected ? "indeterminate" : undefined}
+                  onCheckedChange={() => {}}
+                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
+              </div>
               <button
                 className="flex-1 flex items-center justify-between"
                 onClick={() => toggleGroup(group.label)}
@@ -453,16 +437,15 @@ function ListView({
                     className={`flex items-center px-4 py-3 cursor-pointer transition-colors select-none ${
                       selectedIds.has(s.id) ? "bg-primary/5" : "hover:bg-muted/30"
                     }`}
-                    onClick={() => selectionMode ? onToggle(s.id) : onNavigate(s.id)}
+                    onClick={() => onNavigate(s.id)}
                   >
-                    {selectionMode && (
+                    <div className="mr-3 shrink-0" onClick={e => { e.stopPropagation(); onToggle(s.id); }}>
                       <Checkbox
                         checked={selectedIds.has(s.id)}
                         onCheckedChange={() => onToggle(s.id)}
-                        className="mr-3 shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                        onClick={e => e.stopPropagation()}
+                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
-                    )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between">
                         <span className="font-semibold truncate">{s.name}</span>
@@ -481,17 +464,8 @@ function ListView({
                       </div>
                     </div>
                     <div className="flex items-center gap-1 ml-3">
-                      {!selectionMode && <SessionMenu session={s} />}
-                      {selectionMode ? (
-                        <button
-                          className="p-1.5 rounded-lg hover:bg-primary/10 shrink-0 transition-colors"
-                          onClick={e => { e.stopPropagation(); onNavigate(s.id); }}
-                        >
-                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                      )}
+                      <SessionMenu session={s} />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                     </div>
                   </div>
                 ))}
@@ -664,7 +638,6 @@ export default function Sessions() {
   const { data: sessions, isLoading } = useListSessions();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [selectionMode, setSelectionMode] = useState(false);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const bulkDelete = useBulkDeleteSessions();
@@ -673,13 +646,6 @@ export default function Sessions() {
   const { lang } = useLang();
 
   const filteredSessions = sessions ?? [];
-
-  const toggleSelectionMode = () => {
-    setSelectionMode(prev => {
-      if (prev) setSelectedIds(new Set());
-      return !prev;
-    });
-  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -775,8 +741,6 @@ export default function Sessions() {
             onToggle={toggleSelect}
             onToggleAll={toggleAll}
             onNavigate={navigateTo}
-            selectionMode={selectionMode}
-            onToggleSelectionMode={toggleSelectionMode}
             onDelete={handleDelete}
             lang={lang}
           />
