@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Timer, Trash2, ChevronDown, ChevronUp, ExternalLink, Users, X, Archive, RotateCcw } from "lucide-react";
+import { Plus, Timer, Trash2, ChevronDown, ChevronUp, ExternalLink, Users, X, Archive, RotateCcw, MoreVertical } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -291,11 +294,20 @@ function AddForm({ onClose, clubs, groups, onArchiveClub, onArchiveGroup }: {
 
 // ─── Plan Card ────────────────────────────────────────────────────────────────
 
-function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantNames: Map<string, string> }) {
+function PlanCard({
+  plan, participantNames, selected, onToggleSelect,
+}: {
+  plan: TrainingPlan;
+  participantNames: Map<string, string>;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(plan.date === todayKey);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const updatePlan = useUpdateTrainingPlan();
+  const deletePlan = useDeleteTrainingPlan();
   const createSession = useCreateSession();
 
   const chronoExercises = plan.exercises.filter(e => e.needsChrono);
@@ -324,105 +336,167 @@ function PlanCard({ plan, participantNames }: { plan: TrainingPlan; participantN
     qc.invalidateQueries({ queryKey: getListSessionsQueryKey() });
   };
 
+  const handleDelete = () => {
+    deletePlan.mutate({ id: plan.id }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListTrainingQueryKey() });
+        setDeleteOpen(false);
+      },
+    });
+  };
+
   const names = plan.participantIds
     .map(id => participantNames.get(id))
     .filter(Boolean)
     .join(", ");
 
   return (
-    <div className={`rounded-xl border transition-colors ${isToday ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}>
-      {/* Header */}
-      <button
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
-        onClick={() => setOpen(v => !v)}
+    <>
+      <div
+        className={`rounded-xl border transition-colors ${
+          selected ? "border-primary/40 bg-primary/5" : isToday ? "border-primary/40 bg-primary/5" : "border-border bg-card"
+        }`}
       >
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-sm">{plan.title}</span>
-            {isToday && (
-              <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
-                Aujourd'hui
-              </span>
-            )}
-            {pendingCount > 0 && (
-              <span className="text-[10px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full shrink-0">
-                {pendingCount} session{pendingCount > 1 ? "s" : ""} à créer
-              </span>
-            )}
+        {/* Header — checkbox + contenu cliquable + menu */}
+        <div className="flex items-center px-3 py-3 gap-2">
+          {/* Checkbox sélection */}
+          <div onClick={e => e.stopPropagation()} className="shrink-0">
+            <Checkbox
+              checked={selected}
+              onCheckedChange={onToggleSelect}
+              className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+            />
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <p className="text-xs text-muted-foreground capitalize">{formatDate(plan.date)}</p>
-            {plan.club && <span className="text-[10px] bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-full">🏛 {plan.club}</span>}
-            {plan.group && <span className="text-[10px] bg-violet-500/10 text-violet-600 px-2 py-0.5 rounded-full">👥 {plan.group}</span>}
+
+          {/* Zone cliquable = sélectionner OU expand */}
+          <button
+            className="flex-1 flex items-center justify-between text-left min-w-0 gap-2"
+            onClick={onToggleSelect}
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm">{plan.title}</span>
+                {isToday && (
+                  <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
+                    Aujourd'hui
+                  </span>
+                )}
+                {pendingCount > 0 && (
+                  <span className="text-[10px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full shrink-0">
+                    {pendingCount} à créer
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <p className="text-xs text-muted-foreground capitalize">{formatDate(plan.date)}</p>
+                {plan.club && <span className="text-[10px] bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded-full">🏛 {plan.club}</span>}
+                {plan.group && <span className="text-[10px] bg-violet-500/10 text-violet-600 px-1.5 py-0.5 rounded-full">👥 {plan.group}</span>}
+              </div>
+            </div>
+          </button>
+
+          {/* Bouton expand + menu */}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+              onClick={() => setOpen(v => !v)}
+            >
+              {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                  <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-2" />
+                  Supprimer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
-      </button>
 
-      {/* Body */}
-      {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-border/50">
-          {/* Athlètes */}
-          {names && (
-            <div className="pt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <Users className="w-3.5 h-3.5 shrink-0" />
-              <span>{names}</span>
-            </div>
-          )}
-
-          {/* Notes */}
-          {plan.notes && (
-            <p className="text-xs text-muted-foreground italic">{plan.notes}</p>
-          )}
-
-          {/* Exercices */}
-          {plan.exercises.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              {plan.exercises.map((ex, i) => (
-                <div
-                  key={ex.id}
-                  onClick={() => ex.needsChrono && ex.sessionId && navigate(`/sessions/${ex.sessionId}/chrono`)}
-                  className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg transition-colors ${
-                    ex.needsChrono && ex.sessionId
-                      ? "cursor-pointer hover:bg-primary/10 active:bg-primary/20"
-                      : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs text-muted-foreground shrink-0">{i + 1}.</span>
-                    <span className="text-sm truncate">{ex.name}</span>
-                    {ex.needsChrono && (
-                      <span className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full shrink-0">
-                        <Timer className="w-3 h-3" />
-                        {ex.dist ? `${ex.dist}m` : "Chrono"}
-                      </span>
+        {/* Body */}
+        {open && (
+          <div className="px-4 pb-4 space-y-3 border-t border-border/50">
+            {names && (
+              <div className="pt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <Users className="w-3.5 h-3.5 shrink-0" />
+                <span>{names}</span>
+              </div>
+            )}
+            {plan.notes && (
+              <p className="text-xs text-muted-foreground italic">{plan.notes}</p>
+            )}
+            {plan.exercises.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                {plan.exercises.map((ex, i) => (
+                  <div
+                    key={ex.id}
+                    onClick={() => ex.needsChrono && ex.sessionId && navigate(`/sessions/${ex.sessionId}/chrono`)}
+                    className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg transition-colors ${
+                      ex.needsChrono && ex.sessionId ? "cursor-pointer hover:bg-primary/10 active:bg-primary/20" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs text-muted-foreground shrink-0">{i + 1}.</span>
+                      <span className="text-sm truncate">{ex.name}</span>
+                      {ex.needsChrono && (
+                        <span className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full shrink-0">
+                          <Timer className="w-3 h-3" />
+                          {ex.dist ? `${ex.dist}m` : "Chrono"}
+                        </span>
+                      )}
+                    </div>
+                    {ex.needsChrono && ex.sessionId && (
+                      <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
                     )}
                   </div>
-                  {ex.needsChrono && ex.sessionId && (
-                    <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+            {pendingCount > 0 && (
+              <Button
+                className="w-full mt-2"
+                size="sm"
+                onClick={handleInitAll}
+                disabled={createSession.isPending || updatePlan.isPending}
+              >
+                <Timer className="w-3.5 h-3.5 mr-2" />
+                {createSession.isPending || updatePlan.isPending
+                  ? "Création en cours…"
+                  : `Créer ${pendingCount > 1 ? `les ${pendingCount} sessions` : "la session"}`}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
 
-          {/* Action */}
-          {pendingCount > 0 && (
-            <Button
-              className="w-full mt-2"
-              size="sm"
-              onClick={handleInitAll}
-              disabled={createSession.isPending || updatePlan.isPending}
-            >
-              <Timer className="w-3.5 h-3.5 mr-2" />
-              {createSession.isPending || updatePlan.isPending
-                ? "Création en cours…"
-                : `Créer ${pendingCount > 1 ? `les ${pendingCount} sessions` : "la session"}`}
+      {/* Dialog confirmation suppression */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-[340px]">
+          <DialogHeader>
+            <DialogTitle>Supprimer l'entraînement ?</DialogTitle>
+            <DialogDescription>
+              « {plan.title} » sera supprimé définitivement.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deletePlan.isPending}>
+              <Trash2 className="w-4 h-4 mr-1" />
+              Supprimer
             </Button>
-          )}
-        </div>
-      )}
-    </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -440,7 +514,6 @@ export default function Training() {
   const qc = useQueryClient();
 
   const [showForm, setShowForm] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filterClub, setFilterClub] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState<string | null>(null);
@@ -485,11 +558,10 @@ export default function Training() {
   const toggleSelect = (id: string) =>
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const handleDelete = async () => {
+  const handleBulkDelete = async () => {
     for (const id of selected) await deletePlan.mutateAsync({ id });
     qc.invalidateQueries({ queryKey: getListTrainingQueryKey() });
     setSelected(new Set());
-    setSelectionMode(false);
   };
 
   if (isLoading) {
@@ -520,21 +592,15 @@ export default function Training() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <h2 className="font-semibold text-base">Entraînement</h2>
         <div className="flex items-center gap-2">
-          {selectionMode && selected.size > 0 && (
+          {selected.size > 0 && (
             <button
-              onClick={handleDelete}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-destructive bg-destructive/10 hover:bg-destructive/20"
+              onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-destructive bg-destructive/10 hover:bg-destructive/20 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {selected.size}
+              Supprimer ({selected.size})
             </button>
           )}
-          <button
-            onClick={() => { setSelectionMode(m => !m); setSelected(new Set()); }}
-            className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
-          >
-            {selectionMode ? "Annuler" : "Sélectionner"}
-          </button>
           <Button size="sm" onClick={() => setShowForm(v => !v)}>
             <Plus className="w-4 h-4 mr-1" />
             Ajouter
@@ -618,23 +684,13 @@ export default function Training() {
         )}
 
         {filteredPlans.map(plan => (
-          <div key={plan.id} className="relative">
-            {selectionMode && (
-              <button
-                onClick={() => toggleSelect(plan.id)}
-                className="absolute top-3 left-3 z-10"
-              >
-                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                  selected.has(plan.id) ? "bg-primary border-primary" : "border-muted-foreground bg-background"
-                }`}>
-                  {selected.has(plan.id) && <span className="text-primary-foreground text-xs">✓</span>}
-                </div>
-              </button>
-            )}
-            <div className={selectionMode ? "pl-8" : ""}>
-              <PlanCard plan={plan} participantNames={participantNames} />
-            </div>
-          </div>
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            participantNames={participantNames}
+            selected={selected.has(plan.id)}
+            onToggleSelect={() => toggleSelect(plan.id)}
+          />
         ))}
       </div>
     </div>
