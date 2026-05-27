@@ -318,6 +318,7 @@ export type ProgressionPeriod = {
   avgMs: number;
   count: number;
   trend: "better" | "worse" | "same" | null;
+  times: number[]; // individual times for this period
 };
 
 export type ProgressionData = {
@@ -371,7 +372,7 @@ export function useGetProgression(params: { dist: string; groupBy: "session" | "
             const prevAvg = Math.round(prevTimes.reduce((a, b) => a + b, 0) / prevTimes.length);
             trend = avgMs < prevAvg ? "better" : avgMs > prevAvg ? "worse" : "same";
           }
-          return { label, avgMs, count: times.length, trend };
+          return { label, avgMs, count: times.length, trend, times: [...times].sort((a, b) => a - b) };
         });
         result.push({ participantId: pid, name, periods });
       }
