@@ -64,10 +64,39 @@ export default function Chrono() {
   useEffect(() => {
     if (session && participants.length === 0) {
       const saved = sessionId ? localStorage.getItem(`chrono-${sessionId}`) : null;
-      const savedReps: Record<string, RepRecord[]> = saved ? (JSON.parse(saved).repsMap ?? {}) : {};
+      const parsed = saved ? JSON.parse(saved) : {};
+      const savedReps: Record<string, RepRecord[]> = parsed.repsMap ?? {};
+      const savedRunning: Record<string, { startTime: number; splitStartTime: number | null; currentLaps: number[] }> = parsed.runningState ?? {};
+      const savedGlobalStart: number | null = parsed.globalStartTime ?? null;
+      const now = Date.now();
+
+      // Restore global timer
+      if (savedGlobalStart !== null) {
+        setGlobalRunning(true);
+        setGlobalStartTime(savedGlobalStart);
+        setGlobalMs(now - savedGlobalStart);
+      }
+
       setParticipants(
         session.participants.map(p => {
           const reps = savedReps[p.id] ?? [];
+          const rs = savedRunning[p.id];
+          if (rs) {
+            // Athlete was running — restore with elapsed time
+            return {
+              spId: p.id,
+              pid: p.participantId ?? p.id,
+              name: p.name,
+              selected: false,
+              running: true,
+              startTime: rs.startTime,
+              currentMs: now - rs.startTime,
+              currentLaps: rs.currentLaps ?? [],
+              reps,
+              splitStartTime: rs.splitStartTime,
+              splitMs: rs.splitStartTime !== null ? now - rs.splitStartTime : 0,
+            };
+          }
           return {
             spId: p.id,
             pid: p.participantId ?? p.id,
@@ -110,19 +139,23 @@ export default function Chrono() {
   // ── Global timer controls ─────────────────────────────────────────────
 
   const handleGlobalStart = () => {
+    const now = Date.now();
     setGlobalRunning(true);
-    setGlobalStartTime(Date.now());
+    setGlobalStartTime(now);
     setGlobalMs(0);
+    setParticipants(prev => { saveToStorage(prev, now, true); return prev; });
   };
 
   const handleGlobalStop = () => {
     setGlobalRunning(false);
+    setParticipants(prev => { saveToStorage(prev, globalStartTime, false); return prev; });
   };
 
   const handleGlobalReset = () => {
     setGlobalRunning(false);
     setGlobalStartTime(null);
     setGlobalMs(0);
+    setParticipants(prev => { saveToStorage(prev, null, false); return prev; });
   };
 
   // ── Save series to Firestore ──────────────────────────────────────────
@@ -145,25 +178,48 @@ export default function Chrono() {
     });
   }, [session, distance, createSeries, toast]);
 
-  const saveRepsToStorage = useCallback((updated: ParticipantState[]) => {
+  const saveToStorage = useCallback((
+    updated: ParticipantState[],
+    gStartTime: number | null = globalStartTime,
+    gRunning: boolean = globalRunning,
+  ) => {
     if (!sessionId) return;
     const repsMap: Record<string, RepRecord[]> = {};
-    updated.forEach(p => { repsMap[p.spId] = p.reps; });
-    localStorage.setItem(`chrono-${sessionId}`, JSON.stringify({ repsMap }));
-  }, [sessionId]);
+    const runningState: Record<string, { startTime: number; splitStartTime: number | null; currentLaps: number[] }> = {};
+    updated.forEach(p => {
+      repsMap[p.spId] = p.reps;
+      if (p.running && p.startTime !== null) {
+        runningState[p.spId] = {
+          startTime: p.startTime,
+          splitStartTime: p.splitStartTime,
+          currentLaps: p.currentLaps,
+        };
+      }
+    });
+    localStorage.setItem(`chrono-${sessionId}`, JSON.stringify({
+      repsMap,
+      runningState,
+      globalStartTime: gRunning && gStartTime !== null ? gStartTime : null,
+    }));
+  }, [sessionId, globalStartTime, globalRunning]);
+
+  // Keep backward compat alias used in stopOne/stopSelected
+  const saveRepsToStorage = saveToStorage;
 
   // ── Individual athlete controls ───────────────────────────────────────
 
   const startOne = useCallback((spId: string) => {
     const now = Date.now();
-    setParticipants(prev =>
-      prev.map(p =>
+    setParticipants(prev => {
+      const next = prev.map(p =>
         p.spId === spId
           ? { ...p, running: true, startTime: now, currentMs: 0, currentLaps: [], splitStartTime: now, splitMs: 0 }
           : p
-      )
-    );
-  }, []);
+      );
+      saveToStorage(next);
+      return next;
+    });
+  }, [saveToStorage]);
 
   const lapOne = useCallback((spId: string) => {
     setParticipants(prev =>
@@ -199,13 +255,15 @@ export default function Chrono() {
 
   const startSelected = () => {
     const now = Date.now();
-    setParticipants(prev =>
-      prev.map(p =>
+    setParticipants(prev => {
+      const next = prev.map(p =>
         p.selected && !p.running
           ? { ...p, running: true, startTime: now, currentMs: 0, currentLaps: [], splitStartTime: now, splitMs: 0 }
           : p
-      )
-    );
+      );
+      saveToStorage(next);
+      return next;
+    });
   };
 
   const stopSelected = () => {
