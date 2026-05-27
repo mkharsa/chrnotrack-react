@@ -239,7 +239,7 @@ export default function Chrono() {
       saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
       const next = prev.map(x =>
         x.spId === spId
-          ? { ...x, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...x.reps, newRep] }
+          ? { ...x, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...x.reps, newRep], splitStartTime: null }
           : x
       );
       saveRepsToStorage(next);
@@ -274,7 +274,7 @@ export default function Chrono() {
         const finalMs = now - p.startTime;
         const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
         saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
-        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep] };
+        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep], splitStartTime: null };
       });
       saveRepsToStorage(next);
       return next;
@@ -310,7 +310,7 @@ export default function Chrono() {
         const finalMs = now - p.startTime;
         const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
         saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
-        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep] };
+        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep], splitStartTime: null };
       });
       saveRepsToStorage(next);
       return next;
