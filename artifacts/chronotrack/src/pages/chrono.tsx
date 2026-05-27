@@ -5,7 +5,7 @@ import { formatTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Square, RotateCcw, Flag, ChevronDown, ChevronUp, Timer, UserPlus, Plus, Zap } from "lucide-react";
+import { Play, Square, RotateCcw, Flag, ChevronDown, ChevronUp, Timer, UserPlus, Plus, Zap, Check } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -38,6 +38,7 @@ export default function Chrono() {
   const { data: session } = useGetSession(sessionId);
   const [participants, setParticipants] = useState<ParticipantState[]>([]);
   const [distance, setDistance] = useState("");
+  const [savedDistance, setSavedDistance] = useState("");
   const [expandedReps, setExpandedReps] = useState<Set<string>>(new Set());
 
   // General session timer
@@ -50,7 +51,6 @@ export default function Chrono() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const intervalRef = useRef<number | null>(null);
-  const distSaveTimer = useRef<number | null>(null);
 
   // Add a new athlete to the local state (called after successful API add)
   const addAthleteToLocal = useCallback((spId: string, pid: string, name: string) => {
@@ -112,7 +112,7 @@ export default function Chrono() {
           };
         })
       );
-      if (session.defaultDist) setDistance(session.defaultDist);
+      if (session.defaultDist) { setDistance(session.defaultDist); setSavedDistance(session.defaultDist); }
     }
   }, [session, participants.length, sessionId]);
 
@@ -336,21 +336,29 @@ export default function Chrono() {
               <span className="text-xs text-muted-foreground uppercase tracking-wider"><ChronoDistLabel /></span>
               <Input
                 value={distance}
-                onChange={e => {
-                  const val = e.target.value;
-                  setDistance(val);
-                  // Debounce save to Firestore
-                  if (distSaveTimer.current) clearTimeout(distSaveTimer.current);
-                  distSaveTimer.current = window.setTimeout(() => {
-                    if (sessionId && val.trim()) {
-                      updateSession.mutate({ id: sessionId, data: { defaultDist: val.trim() } });
-                    }
-                  }, 800);
+                onChange={e => setDistance(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && distance.trim() && distance.trim() !== savedDistance) {
+                    updateSession.mutate({ id: sessionId, data: { defaultDist: distance.trim() } });
+                    setSavedDistance(distance.trim());
+                  }
                 }}
                 className="h-6 w-20 text-xs font-mono text-primary"
                 placeholder="400"
               />
               <span className="text-xs text-muted-foreground">m</span>
+              {distance.trim() !== savedDistance && distance.trim() !== "" && (
+                <button
+                  onClick={() => {
+                    updateSession.mutate({ id: sessionId, data: { defaultDist: distance.trim() } });
+                    setSavedDistance(distance.trim());
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all active:scale-95"
+                >
+                  <Check className="w-3 h-3" />
+                  Valider
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
