@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   useListSessions, useBulkDeleteSessions, getListSessionsQueryKey, useCreateSession,
   useListParticipants, useCreateParticipant, getListParticipantsQueryKey,
@@ -189,6 +189,16 @@ function SessionMenu({ session }: { session: Session }) {
     setGroup(session.group ?? "");
     setEditOpen(true);
   };
+
+  // Sync form fields whenever the dialog opens or the session data changes
+  // (handles cases where Firebase data arrives after initial mount)
+  useEffect(() => {
+    if (editOpen) {
+      setName(session.name);
+      setClub(session.club ?? "");
+      setGroup(session.group ?? "");
+    }
+  }, [editOpen, session.name, session.club, session.group]);
 
   const handleSave = () => {
     updateSession.mutate(

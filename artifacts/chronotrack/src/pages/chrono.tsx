@@ -237,9 +237,10 @@ export default function Chrono() {
       const finalMs = Date.now() - p.startTime;
       const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
       saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
+      // Keep splitStartTime running — DÉPART keeps ticking after individual stop
       const next = prev.map(x =>
         x.spId === spId
-          ? { ...x, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...x.reps, newRep], splitStartTime: null }
+          ? { ...x, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...x.reps, newRep] }
           : x
       );
       saveRepsToStorage(next);
@@ -274,7 +275,8 @@ export default function Chrono() {
         const finalMs = now - p.startTime;
         const newRep: RepRecord = { timeMs: finalMs, laps: [...p.currentLaps, finalMs] };
         saveSeries(p.pid, p.name, finalMs, p.reps.length + 1);
-        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep], splitStartTime: null };
+        // Keep splitStartTime running — DÉPART keeps ticking after individual stop
+        return { ...p, running: false, startTime: null, currentMs: finalMs, currentLaps: [], reps: [...p.reps, newRep] };
       });
       saveRepsToStorage(next);
       return next;
@@ -479,7 +481,7 @@ export default function Chrono() {
             expandedReps={expandedReps}
             onToggleRep={toggleRepExpanded}
             splitMs={p.splitMs}
-            hasSplit={p.splitStartTime !== null}
+            hasSplit={p.splitStartTime !== null || p.splitMs > 0}
           />
         ))}
         {participants.length === 0 && (
@@ -685,9 +687,9 @@ function AthleteCard({
       {/* ── Dual chrono row ── */}
       {hasSplit ? (
         <div className="mx-3 mb-3 grid grid-cols-2 gap-2">
-          {/* Departure interval chrono */}
+          {/* Departure interval chrono — keeps ticking after individual stop */}
           <div className={`rounded-lg px-3 py-2 flex flex-col items-center border ${
-            p.running
+            p.splitStartTime !== null
               ? "bg-blue-500/10 border-blue-500/30"
               : "bg-muted/60 border-border"
           }`}>
@@ -695,7 +697,7 @@ function AthleteCard({
               Départ
             </span>
             <span className={`font-mono text-lg font-black tabular-nums tracking-tight ${
-              p.running ? "text-blue-400" : "text-blue-300/70"
+              p.splitStartTime !== null ? "text-blue-400" : "text-blue-300/70"
             }`}>
               {formatTime(splitMs)}
             </span>
