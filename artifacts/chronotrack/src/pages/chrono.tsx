@@ -341,6 +341,7 @@ export default function Chrono() {
   const anySelected = selectedParticipants.length > 0;
   const allSelected = participants.length > 0 && participants.every(p => p.selected);
   const anyRunning = participants.some(p => p.running);
+  const anySplitActive = participants.some(p => p.splitStartTime !== null);
 
   return (
     <div className="flex flex-col bg-background text-foreground min-h-full">
@@ -420,7 +421,7 @@ export default function Chrono() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                {anyRunning && (
+                {(anyRunning || anySplitActive) && (
                   <button
                     onClick={stopAll}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-white font-black text-sm uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-orange-500/30"
