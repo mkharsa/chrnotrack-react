@@ -233,18 +233,18 @@ function SessionMenu({ session }: { session: Session }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem onClick={openEdit}>
+          <DropdownMenuItem onClick={e => { e.stopPropagation(); openEdit(); }}>
             <Pencil className="w-3.5 h-3.5 mr-2" />
             Modifier
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleExport}>
+          <DropdownMenuItem onClick={e => { e.stopPropagation(); handleExport(); }}>
             <Download className="w-3.5 h-3.5 mr-2" />
             {t.exportPdf}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
-            onClick={() => setDeleteOpen(true)}
+            onClick={e => { e.stopPropagation(); setDeleteOpen(true); }}
           >
             <Trash2 className="w-3.5 h-3.5 mr-2" />
             Supprimer
@@ -463,9 +463,9 @@ function ListView({
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 ml-3">
+                    <div className="flex items-center gap-1 ml-3" onClick={e => e.stopPropagation()}>
                       <SessionMenu session={s} />
-                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 pointer-events-none" />
                     </div>
                   </div>
                 ))}
