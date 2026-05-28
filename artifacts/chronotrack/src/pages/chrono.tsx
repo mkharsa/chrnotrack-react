@@ -304,6 +304,18 @@ export default function Chrono() {
     setParticipants(prev => prev.map(p => ({ ...p, selected: !allSelected })));
   };
 
+  const stopSplit = useCallback((spId: string) => {
+    setParticipants(prev => {
+      const next = prev.map(p =>
+        p.spId === spId && p.splitStartTime !== null
+          ? { ...p, splitStartTime: null }
+          : p
+      );
+      saveRepsToStorage(next);
+      return next;
+    });
+  }, [saveRepsToStorage]);
+
   const stopAll = useCallback(() => {
     const now = Date.now();
     setParticipants(prev => {
@@ -478,6 +490,7 @@ export default function Chrono() {
             onStart={startOne}
             onStop={stopOne}
             onLap={lapOne}
+            onStopSplit={stopSplit}
             onToggleSelect={toggleSelect}
             expandedReps={expandedReps}
             onToggleRep={toggleRepExpanded}
@@ -599,6 +612,7 @@ function AthleteCard({
   onStart,
   onStop,
   onLap,
+  onStopSplit,
   onToggleSelect,
   expandedReps,
   onToggleRep,
@@ -609,6 +623,7 @@ function AthleteCard({
   onStart: (spId: string) => void;
   onStop: (spId: string) => void;
   onLap: (spId: string) => void;
+  onStopSplit: (spId: string) => void;
   onToggleSelect: (spId: string) => void;
   expandedReps: Set<string>;
   onToggleRep: (key: string) => void;
@@ -688,21 +703,28 @@ function AthleteCard({
       {/* ── Dual chrono row ── */}
       {hasSplit ? (
         <div className="mx-3 mb-3 grid grid-cols-2 gap-2">
-          {/* Departure interval chrono — keeps ticking after individual stop */}
-          <div className={`rounded-lg px-3 py-2 flex flex-col items-center border ${
-            p.splitStartTime !== null
-              ? "bg-blue-500/10 border-blue-500/30"
-              : "bg-muted/60 border-border"
-          }`}>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-0.5">
+          {/* Departure interval chrono — click to freeze */}
+          <button
+            className={`rounded-lg px-3 py-2 flex flex-col items-center border w-full transition-all active:scale-95 ${
+              p.splitStartTime !== null
+                ? "bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20 cursor-pointer"
+                : "bg-muted/60 border-border cursor-default"
+            }`}
+            onClick={e => { e.stopPropagation(); if (p.splitStartTime !== null) onStopSplit(p.spId); }}
+            disabled={p.splitStartTime === null}
+          >
+            <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-0.5 flex items-center gap-1">
               Départ
+              {p.splitStartTime !== null && (
+                <Square className="w-2 h-2 fill-blue-400 text-blue-400" />
+              )}
             </span>
             <span className={`font-mono text-lg font-black tabular-nums tracking-tight ${
               p.splitStartTime !== null ? "text-blue-400" : "text-blue-300/70"
             }`}>
               {formatTime(splitMs)}
             </span>
-          </div>
+          </button>
           {/* Performance chrono */}
           <div className={`rounded-lg px-3 py-2 flex flex-col items-center border ${
             p.running
