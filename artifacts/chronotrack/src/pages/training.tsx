@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Timer, Trash2, ChevronDown, ChevronUp, ExternalLink, Users, X, Archive, RotateCcw, MoreVertical } from "lucide-react";
@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   useListTraining, useCreateTrainingPlan, useUpdateTrainingPlan, useDeleteTrainingPlan,
   useCreateSession, useListParticipants, useCreateParticipant,
@@ -28,6 +30,59 @@ type DraftExercise = { id: string; name: string; needsChrono: boolean; dist: str
 
 function newDraft(): DraftExercise {
   return { id: crypto.randomUUID(), name: "", needsChrono: false, dist: "" };
+}
+
+// ─── Club / Group Select ──────────────────────────────────────────────────────
+
+function ClubGroupSelect({
+  value, onChange, suggestions, placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  suggestions: string[];
+  placeholder: string;
+}) {
+  const isCustom = value !== "" && !suggestions.includes(value);
+  const [custom, setCustom] = useState(isCustom);
+
+  useEffect(() => {
+    setCustom(value !== "" && !suggestions.includes(value));
+  }, [value, suggestions]);
+
+  const selectValue = custom ? "__custom__" : (value !== "" ? value : "__none__");
+
+  return (
+    <div className="space-y-2">
+      <Select
+        value={selectValue}
+        onValueChange={v => {
+          if (v === "__none__") { setCustom(false); onChange(""); }
+          else if (v === "__custom__") { setCustom(true); onChange(""); }
+          else { setCustom(false); onChange(v); }
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">— Aucun —</SelectItem>
+          {suggestions.map(s => (
+            <SelectItem key={s} value={s}>{s}</SelectItem>
+          ))}
+          <SelectItem value="__custom__">✏️ Autre…</SelectItem>
+        </SelectContent>
+      </Select>
+      {custom && (
+        <Input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoFocus
+          className="text-sm"
+        />
+      )}
+    </div>
+  );
 }
 
 // ─── Add Form ─────────────────────────────────────────────────────────────────
@@ -163,11 +218,11 @@ function AddForm({ onClose, clubs, groups, onArchiveClub, onArchiveGroup }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Club (optionnel)</label>
-          <AutocompleteInput value={club} onChange={setClub} suggestions={clubs} onArchive={onArchiveClub} placeholder="Ex: CN Versailles" />
+          <ClubGroupSelect value={club} onChange={setClub} suggestions={clubs} placeholder="Ex: CN Versailles" />
         </div>
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Groupe (optionnel)</label>
-          <AutocompleteInput value={group} onChange={setGroup} suggestions={groups} onArchive={onArchiveGroup} placeholder="Ex: Seniors A" />
+          <ClubGroupSelect value={group} onChange={setGroup} suggestions={groups} placeholder="Ex: Seniors A" />
         </div>
       </div>
 
@@ -295,17 +350,22 @@ function AddForm({ onClose, clubs, groups, onArchiveClub, onArchiveGroup }: {
 // ─── Plan Card ────────────────────────────────────────────────────────────────
 
 function PlanCard({
-  plan, participantNames, selected, onToggleSelect,
+  plan, participantNames, selected, onToggleSelect, allClubsSuggestions, allGroupsSuggestions,
 }: {
   plan: TrainingPlan;
   participantNames: Map<string, string>;
   selected: boolean;
   onToggleSelect: () => void;
+  allClubsSuggestions: string[];
+  allGroupsSuggestions: string[];
 }) {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(plan.date === todayKey);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editClub, setEditClub] = useState(plan.club ?? "");
+  const [editGroup, setEditGroup] = useState(plan.group ?? "");
   const updatePlan = useUpdateTrainingPlan();
   const deletePlan = useDeleteTrainingPlan();
   const createSession = useCreateSession();
@@ -343,6 +403,31 @@ function PlanCard({
         setDeleteOpen(false);
       },
     });
+  };
+
+  const openEdit = () => {
+    setEditClub(plan.club ?? "");
+    setEditGroup(plan.group ?? "");
+    setEditOpen(true);
+  };
+
+  useEffect(() => {
+    if (editOpen) {
+      setEditClub(plan.club ?? "");
+      setEditGroup(plan.group ?? "");
+    }
+  }, [editOpen, plan.club, plan.group]);
+
+  const handleEditSave = () => {
+    updatePlan.mutate(
+      { id: plan.id, data: { club: editClub.trim() || null, group: editGroup.trim() || null } },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getListTrainingQueryKey() });
+          setEditOpen(false);
+        },
+      }
+    );
   };
 
   const names = plan.participantIds
@@ -409,7 +494,12 @@ function PlanCard({
                   <MoreVertical className="w-4 h-4 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={openEdit}>
+                  <RotateCcw className="w-3.5 h-3.5 mr-2" />
+                  Modifier club/groupe
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={() => setDeleteOpen(true)}
@@ -477,6 +567,30 @@ function PlanCard({
           </div>
         )}
       </div>
+
+      {/* Dialog modifier club/groupe */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[340px]">
+          <DialogHeader>
+            <DialogTitle>Modifier l'entraînement</DialogTitle>
+            <DialogDescription>« {plan.title} »</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>Club</Label>
+              <ClubGroupSelect value={editClub} onChange={setEditClub} suggestions={allClubsSuggestions} placeholder="ex: AC Bordeaux" />
+            </div>
+            <div className="grid gap-2">
+              <Label>Groupe</Label>
+              <ClubGroupSelect value={editGroup} onChange={setEditGroup} suggestions={allGroupsSuggestions} placeholder="ex: Seniors" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Annuler</Button>
+            <Button onClick={handleEditSave} disabled={updatePlan.isPending}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog confirmation suppression */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -690,6 +804,8 @@ export default function Training() {
             participantNames={participantNames}
             selected={selected.has(plan.id)}
             onToggleSelect={() => toggleSelect(plan.id)}
+            allClubsSuggestions={clubs}
+            allGroupsSuggestions={groups}
           />
         ))}
       </div>
