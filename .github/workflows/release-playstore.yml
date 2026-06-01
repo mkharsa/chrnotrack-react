@@ -1,0 +1,76 @@
+name: Release to Play Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Play Store track"
+        required: true
+        default: "internal"
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build web app
+        run: pnpm --filter @workspace/chronotrack exec vite build --config vite.capacitor.config.ts
+
+      - name: Capacitor sync
+        run: cd artifacts/chronotrack && npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x artifacts/chronotrack/android/gradlew
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode \
+            > artifacts/chronotrack/android/app/chronotrack-release.keystore
+
+      - name: Build release AAB
+        run: |
+          cd artifacts/chronotrack/android && ./gradlew bundleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file=${{ github.workspace }}/artifacts/chronotrack/android/app/chronotrack-release.keystore \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChronoTrack-release
+          path: artifacts/chronotrack/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Deploy to Play Store
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
+          packageName: chrono.track
+          releaseFiles: artifacts/chronotrack/android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ github.event.inputs.track }}
+          status: completed
