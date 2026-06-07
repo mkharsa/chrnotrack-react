@@ -364,8 +364,11 @@ function PlanCard({
   const [open, setOpen] = useState(plan.date === todayKey);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState(plan.title);
+  const [editDate, setEditDate] = useState(plan.date);
   const [editClub, setEditClub] = useState(plan.club ?? "");
   const [editGroup, setEditGroup] = useState(plan.group ?? "");
+  const [editNotes, setEditNotes] = useState(plan.notes ?? "");
   const updatePlan = useUpdateTrainingPlan();
   const deletePlan = useDeleteTrainingPlan();
   const createSession = useCreateSession();
@@ -406,21 +409,36 @@ function PlanCard({
   };
 
   const openEdit = () => {
+    setEditTitle(plan.title);
+    setEditDate(plan.date);
     setEditClub(plan.club ?? "");
     setEditGroup(plan.group ?? "");
+    setEditNotes(plan.notes ?? "");
     setEditOpen(true);
   };
 
   useEffect(() => {
     if (editOpen) {
+      setEditTitle(plan.title);
+      setEditDate(plan.date);
       setEditClub(plan.club ?? "");
       setEditGroup(plan.group ?? "");
+      setEditNotes(plan.notes ?? "");
     }
-  }, [editOpen, plan.club, plan.group]);
+  }, [editOpen, plan.title, plan.date, plan.club, plan.group, plan.notes]);
 
   const handleEditSave = () => {
     updatePlan.mutate(
-      { id: plan.id, data: { club: editClub.trim() || null, group: editGroup.trim() || null } },
+      {
+        id: plan.id,
+        data: {
+          title: editTitle.trim() || plan.title,
+          date: editDate || plan.date,
+          club: editClub.trim() || null,
+          group: editGroup.trim() || null,
+          notes: editNotes.trim() || null,
+        },
+      },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListTrainingQueryKey() });
@@ -497,7 +515,7 @@ function PlanCard({
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem onClick={openEdit}>
                   <RotateCcw className="w-3.5 h-3.5 mr-2" />
-                  Modifier club/groupe
+                  Modifier
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -568,21 +586,34 @@ function PlanCard({
         )}
       </div>
 
-      {/* Dialog modifier club/groupe */}
+      {/* Dialog modifier l'entraînement */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-[340px]">
+        <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
             <DialogTitle>Modifier l'entraînement</DialogTitle>
-            <DialogDescription>« {plan.title} »</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label>Club</Label>
-              <ClubGroupSelect value={editClub} onChange={setEditClub} suggestions={allClubsSuggestions} placeholder="ex: AC Bordeaux" />
+              <Label>Titre</Label>
+              <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Ex: Vitesse — sprint" />
             </div>
             <div className="grid gap-2">
-              <Label>Groupe</Label>
-              <ClubGroupSelect value={editGroup} onChange={setEditGroup} suggestions={allGroupsSuggestions} placeholder="ex: Seniors" />
+              <Label>Date</Label>
+              <Input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label>Club</Label>
+                <ClubGroupSelect value={editClub} onChange={setEditClub} suggestions={allClubsSuggestions} placeholder="ex: AC Bordeaux" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Groupe</Label>
+                <ClubGroupSelect value={editGroup} onChange={setEditGroup} suggestions={allGroupsSuggestions} placeholder="ex: Seniors" />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Notes</Label>
+              <Input value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Notes (optionnel)" />
             </div>
           </div>
           <DialogFooter>

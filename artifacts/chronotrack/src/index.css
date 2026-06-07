@@ -155,4 +155,15 @@
     color: hsl(var(--muted-foreground));
     pointer-events: none;
   }
+
+  /* Safe-area insets — Android & iOS Capacitor */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }

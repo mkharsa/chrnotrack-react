@@ -146,13 +146,21 @@ export function useListSessions() {
 
 export function useListClubs() {
   const { data: sessions } = useListSessions();
-  const clubs = Array.from(new Set((sessions ?? []).map(s => s.club).filter((c): c is string => !!c))).sort();
+  const { data: plans } = useListTraining();
+  const clubs = Array.from(new Set([
+    ...(sessions ?? []).map(s => s.club).filter((c): c is string => !!c),
+    ...(plans   ?? []).map(p => p.club).filter((c): c is string => !!c),
+  ])).sort();
   return clubs;
 }
 
 export function useListGroups() {
   const { data: sessions } = useListSessions();
-  const groups = Array.from(new Set((sessions ?? []).map(s => s.group).filter((g): g is string => !!g))).sort();
+  const { data: plans } = useListTraining();
+  const groups = Array.from(new Set([
+    ...(sessions ?? []).map(s => s.group).filter((g): g is string => !!g),
+    ...(plans   ?? []).map(p => p.group).filter((g): g is string => !!g),
+  ])).sort();
   return groups;
 }
 
